@@ -1,0 +1,18 @@
+pep_version: "2.0.0"
+sample_table: "tmp_proto_sample_sheet.csv"
+
+sample_modifiers:
+  derive:
+    attributes: ["raw_read1","raw_read2",
+                 "trimmed_read1","trimmed_read2",
+                 "STAR_Alignment","RSEM_Counts",
+                 "DESeq2_NormCount","DESeq2_DGE"]
+    sources:
+      raw_read1: 00-RawData/{sample_name}_R1_raw.fastq.gz
+      raw_read2: 00-RawData/{sample_name}_R2_raw.fastq.gz
+      trimmed_read1: 01-TG_Preproc/{sample_name}_R1_trimmed.fastq.gz
+      trimmed_read2: 01-TG_Preproc/{sample_name}_R2_trimmed.fastq.gz
+      STAR_Alignment: 02-STAR_Alignment/{sample_name}
+      RSEM_Counts: 03-RSEM_Counts/{sample_name}
+      DESeq2_NormCount: 04-DESeq2_NormCounts
+      DESeq2_DGE: 05-DESeq2_DGE
