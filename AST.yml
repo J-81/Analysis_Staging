@@ -1,0 +1,12 @@
+name: AST
+channels:
+  - anaconda
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - tqdm=4.59
+  - peppy=0.31
+  - requests=2.25
+  - pandas=1.2
+  - isatools=0.12
