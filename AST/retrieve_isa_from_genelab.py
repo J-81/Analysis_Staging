@@ -15,6 +15,7 @@ from pathlib import Path
 from collections import defaultdict
 import sys
 import shutil
+import importlib.resources
 
 from isatools.io import isatab_parser
 from isatools.io.isatab_parser import ISATabRecord
@@ -79,14 +80,14 @@ def download_isa(accession: str, alternate_url: bool = False):
     print(f"Accessing GeneLab API for ISA file. Accesion: {accession}")
     filename ,_, url, alt_url  = get_isa(accession)
     # debug
-    print(filename, url, alt_url)
+    #print(filename, url, alt_url)
     # end debug
     if not Path(filename).is_file():
         print(f"Successfully retrieved ISA file location from API.")
         use_url = url if not alternate_url else alt_url
         if not alternate_url:
             print("WARNING: The default URL did not work in tests.  If it still fails use the alternate url!")
-        print(f"Downloading from {use_url}. Alternative URL used: {alternate_url}")
+        print(f"Downloading from {use_url}.")
         r = requests.get(use_url)
         # If the response was successful, no Exception will be raised
         r.raise_for_status()
@@ -256,22 +257,23 @@ def isa_to_RNASeq_samplesheet(isazip, accession):
 
             samples[sample_name]["factors"] = dict()
             for factor_name in factor_names:
-                print(f"Factor: {factor_name}")
+                #print(f"Factor: {factor_name}")
                 factor_key = f"Factor Value[{factor_name}]"
                 if node_data.metadata.get(factor_key):
                     # factor names as attributes replace spaces with '_'
                     factor_value = getattr(node_data.metadata.get(factor_key)[0], factor_name.replace(" ","_").replace("-","_"), None)
-                    print(f"ASSAY: {factor_value}")
+                    #print(f"ASSAY: {factor_value}")
                     samples[sample_name]["factors"][factor_key] = factor_value
                 if study_node.metadata.get(factor_key):
-                    print(study_node.metadata.get(factor_key)[0])
+                    #print(study_node.metadata.get(factor_key)[0])
                     # factor names as attributes replace spaces with '_'
                     factor_value = getattr(study_node.metadata.get(factor_key)[0], factor_name.replace(" ","_").replace("-","_"), None)
-                    print(f"STUDY: {factor_value}")
+                    #print(f"STUDY: {factor_value}")
                     samples[sample_name]["factors"][factor_key] = factor_value
                 #
                 if factor_value == None:
-                    print(sample_name, factor_key, factor_value)
+                    pass
+                    #print(sample_name, factor_key, factor_value)
 
 
             #return node_data, assay, study
@@ -319,7 +321,7 @@ def isa_to_RNASeq_samplesheet(isazip, accession):
     with open(output_file, "w") as f:
         # write header
         f.write(f"sample_name,read1_url,"\
-                f"paired_end,has_ERCC,version,isa_key,protocol,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,DESeq2_NormCount,DESeq2_DGE,{','.join(samples[sample_name]['factors'].keys())}")
+                f"paired_end,has_ERCC,version,isa_key,protocol,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,{','.join(samples[sample_name]['factors'].keys())}")
         if project["paired_end"]:
             f.write(",read2_url,raw_read2,trimmed_read2")
         f.write("\n")
@@ -340,11 +342,11 @@ def isa_to_RNASeq_samplesheet(isazip, accession):
 
             f.write(f"{sample_name},{read1_url},"\
                     f"{project['paired_end']},{project['has_ercc']},{project['version']}"\
-                    f",{project['isa_key']},anySampleType,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,DESeq2_NormCount,DESeq2_DGE,{','.join(sample['factors'].values())}")
+                    f",{project['isa_key']},anySampleType,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,{','.join(sample['factors'].values())}")
             if project["paired_end"]:
                 f.write(f",{read2_url},raw_read2,trimmed_read2")
             f.write("\n")
-    print(f"Wrote {output_file}!")
+    #print(f"Wrote {output_file}!")
     return output_file
 
 def _extract_files_merged(node):
@@ -357,7 +359,7 @@ def _extract_file_raw(node):
     files_string =  node.metadata["Raw Data File"][0]
     return [file.strip() for file in files_string.split(",")]
 
-if __name__ == "__main__":
+def main():
     args = _parse_args()
     isazip = download_isa(args.accession, args.alternate_url)
 
@@ -366,8 +368,17 @@ if __name__ == "__main__":
         proto_sample_sheet = isa_to_RNASeq_samplesheet(isazip, args.accession)
         shutil.copy(proto_sample_sheet, "tmp_proto_sample_sheet.csv")
         # load peppy project config
-        template_path =Path(__file__).parent / Path("pep_templates/RNASeq_RCP.yaml")
+        with importlib.resources.path("AST", "RNASeq_RCP.yaml") as template:
+            template_path = template
         shutil.copy(template_path, ".")
         p = peppy.Project(template_path.name)
-        p.sample_table.to_csv(f"AUTOFILLED_{proto_sample_sheet}")
+        filled_sample_sheet_name = f"AST_autogen_{proto_sample_sheet}"
+        p.sample_table.to_csv(filled_sample_sheet_name)
+        print(f"Autogenerating Paths for RNASeq sample sheet")
+        print(f"Template (in AST package): {template_path.name}")
+        print(f"Filled SampleSheet: {filled_sample_sheet_name}")
+        os.remove(proto_sample_sheet)
         os.remove("tmp_proto_sample_sheet.csv")
+
+if __name__ == "__main__":
+    main()
