@@ -28,9 +28,9 @@ def _parse_args():
   parser = argparse.ArgumentParser()
   parser.add_argument('--accession', metavar='GLDS-001', required=True,
                       help='GLDS accesion number')
-  parser.add_argument('--alternate_url', action="store_true", default=False,
+  parser.add_argument('--alternate-url', action="store_true", default=False,
                       help='Use alternate url, fetched by api script')
-  parser.add_argument('--to_RNASeq_samplesheet', action="store_true", default=False,
+  parser.add_argument('--to-RNASeq-samplesheet', action="store_true", default=False,
                       help='Creates RNASeq Samplesheet based on ISA file and GeneLab API')
 
   args = parser.parse_args()
