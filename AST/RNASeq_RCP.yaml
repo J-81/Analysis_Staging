@@ -17,9 +17,9 @@ sample_modifiers:
     sources:
       raw_read1: 00-RawData/Fastq/{sample_name}_R1_raw.fastq.gz
       raw_read2: 00-RawData/Fastq/{sample_name}_R2_raw.fastq.gz
-      raw_read_fastQC: 00-RawData/FastQC/{sample_name}
+      raw_read_fastQC: 00-RawData/FastQC_Reports
       trimmed_read1: 01-TG_Preproc/Fastq/{sample_name}_R1_trimmed.fastq.gz
       trimmed_read2: 01-TG_Preproc/Fastq/{sample_name}_R2_trimmed.fastq.gz
-      trimmed_read_fastQC: 01-TG_Preproc/FastQC/{sample_name}
+      trimmed_read_fastQC: 01-TG_Preproc/FastQC_Reports
       STAR_Alignment: 02-STAR_Alignment/{sample_name}
       RSEM_Counts: 03-RSEM_Counts/{sample_name}
