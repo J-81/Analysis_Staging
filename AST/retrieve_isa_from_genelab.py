@@ -30,8 +30,8 @@ def _parse_args():
                       help='GLDS accesion number')
   parser.add_argument('--alternate-url', action="store_true", default=False,
                       help='Use alternate url, fetched by api script')
-  parser.add_argument('--to-RNASeq-samplesheet', action="store_true", default=False,
-                      help='Creates RNASeq Samplesheet based on ISA file and GeneLab API')
+  parser.add_argument('--to-RNASeq-runsheet', action="store_true", default=False,
+                      help='Creates RNASeq Runsheet based on ISA file and GeneLab API')
 
   args = parser.parse_args()
   return args
@@ -205,7 +205,7 @@ def extract_has_ercc(study):
     else:
         raise ValueError(f"Unexpectedly found more than 1 spike-in protocol. {spike_in_protocols}")
 
-def isa_to_RNASeq_samplesheet(isazip, accession):
+def isa_to_RNASeq_runsheet(isazip, accession):
     isa = parse_isa_dir_from_zip(isazip)
 
     # extract study
@@ -317,7 +317,7 @@ def isa_to_RNASeq_samplesheet(isazip, accession):
     ##########################
     # WRITE OUTPUT
     ##########################
-    output_file = Path(f"{accession}_RNASeq_samplesheet.csv")
+    output_file = Path(f"{accession}_RNASeq_runsheet.csv")
     with open(output_file, "w") as f:
         # write header
         f.write(f"sample_name,read1_url,"\
@@ -363,22 +363,22 @@ def main():
     args = _parse_args()
     isazip = download_isa(args.accession, args.alternate_url)
 
-    if args.to_RNASeq_samplesheet:
-        # generate proto sample sheet from ISA
-        proto_sample_sheet = isa_to_RNASeq_samplesheet(isazip, args.accession)
-        shutil.copy(proto_sample_sheet, "tmp_proto_sample_sheet.csv")
+    if args.to_RNASeq_runsheet:
+        # generate proto run sheet from ISA
+        proto_run_sheet = isa_to_RNASeq_runsheet(isazip, args.accession)
+        shutil.copy(proto_run_sheet, "tmp_proto_run_sheet.csv")
         # load peppy project config
         with importlib.resources.path("AST", "RNASeq_RCP.yaml") as template:
             template_path = template
         shutil.copy(template_path, ".")
         p = peppy.Project(template_path.name)
-        filled_sample_sheet_name = f"AST_autogen_{proto_sample_sheet}"
-        p.sample_table.to_csv(filled_sample_sheet_name)
-        print(f"Autogenerating Paths for RNASeq sample sheet")
+        filled_run_sheet_name = f"AST_autogen_{proto_run_sheet}"
+        p.sample_table.to_csv(filled_run_sheet_name)
+        print(f"Autogenerating Paths for RNASeq run sheet")
         print(f"Template (in AST package): {template_path.name}")
-        print(f"Filled SampleSheet: {filled_sample_sheet_name}")
-        os.remove(proto_sample_sheet)
-        os.remove("tmp_proto_sample_sheet.csv")
+        print(f"Filled Run Sheet: {filled_run_sheet_name}")
+        os.remove(proto_run_sheet)
+        os.remove("tmp_proto_run_sheet.csv")
 
 if __name__ == "__main__":
     main()
