@@ -10,18 +10,16 @@ sample_modifiers:
 
   derive:
     attributes: ["raw_read1","raw_read2",
-                 "raw_read1_fastQC","raw_read2_fastQC",
+                 "raw_read_fastQC",
                  "trimmed_read1","trimmed_read2",
-                 "trimmed_read1_fastQC","trimmed_read2_fastQC",
+                 "trimmed_read_fastQC",
                  "STAR_Alignment","RSEM_Counts"]
     sources:
       raw_read1: 00-RawData/Fastq/{sample_name}_R1_raw.fastq.gz
       raw_read2: 00-RawData/Fastq/{sample_name}_R2_raw.fastq.gz
-      raw_read1_fastQC: 00-RawData/FastQC/{sample_name}
-      raw_read2_fastQC: 00-RawData/FastQC/{sample_name}
+      raw_read_fastQC: 00-RawData/FastQC/{sample_name}
       trimmed_read1: 01-TG_Preproc/Fastq/{sample_name}_R1_trimmed.fastq.gz
       trimmed_read2: 01-TG_Preproc/Fastq/{sample_name}_R2_trimmed.fastq.gz
-      trimmed_read1_fastQC: 01-TG_Preproc/FastQC/{sample_name}
-      trimmed_read2_fastQC: 01-TG_Preproc/FastQC/{sample_name}
+      trimmed_read_fastQC: 01-TG_Preproc/FastQC/{sample_name}
       STAR_Alignment: 02-STAR_Alignment/{sample_name}
       RSEM_Counts: 03-RSEM_Counts/{sample_name}
