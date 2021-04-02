@@ -321,9 +321,9 @@ def isa_to_RNASeq_runsheet(isazip, accession):
     with open(output_file, "w") as f:
         # write header
         f.write(f"sample_name,read1_url,"\
-                f"paired_end,has_ERCC,version,isa_key,protocol,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,{','.join(samples[sample_name]['factors'].keys())}")
+                f"paired_end,has_ERCC,version,isa_key,protocol,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,raw_read1_fastQC,trimmed_read1_fastQC,{','.join(samples[sample_name]['factors'].keys())}")
         if project["paired_end"]:
-            f.write(",read2_url,raw_read2,trimmed_read2")
+            f.write(",read2_url,raw_read2,trimmed_read2,raw_read2_fastQC,trimmed_read2_fastQC")
         f.write("\n")
 
 
@@ -342,9 +342,9 @@ def isa_to_RNASeq_runsheet(isazip, accession):
 
             f.write(f"{sample_name},{read1_url},"\
                     f"{project['paired_end']},{project['has_ercc']},{project['version']}"\
-                    f",{project['isa_key']},anySampleType,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,{','.join(sample['factors'].values())}")
+                    f",{project['isa_key']},anySampleType,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,raw_read1_fastQC,trimmed_read1_fastQC,{','.join(sample['factors'].values())}")
             if project["paired_end"]:
-                f.write(f",{read2_url},raw_read2,trimmed_read2")
+                f.write(f",{read2_url},raw_read2,trimmed_read2,raw_read2_fastQC,trimmed_read2_fastQC")
             f.write("\n")
     #print(f"Wrote {output_file}!")
     return output_file
