@@ -223,6 +223,22 @@ def extract_organism(study):
         print(e)
     raise ValueError(f"Could not find organism data. Last node metadata: {node_data.metadata}")
 
+def extract_read_length(node_data):
+    """ Extract read length
+    """
+    try:
+        if  read_length_meta_attr := node_data.metadata.get("Parameter Value[Read Length,http://ncicb.nci.nih.gov/xml/owl/EVS/Thesaurus.owl#C153362,NCIT]"):
+            if read_length := getattr(read_length_meta_attr[0], "Read_Length_http_ncicb_nci_nih_gov_xml_owl_EVS_Thesaurus_owl_C153362_NCIT", None):
+                return read_length
+        # catch lowercase cases
+        '''
+        elif  read_length_meta_attr := node_data.metadata.get("Characteristics[read length]"):
+            if read_length := getattr(read_length_meta_attr[0], "read length", None):
+                return read_length
+        '''
+    except Exception as e:
+        print(e)
+    raise ValueError(f"Could not find read length data. Last node metadata: {node_data.metadata}")
 
 def isa_to_RNASeq_runsheet(isazip, accession):
     isa = parse_isa_dir_from_zip(isazip)
@@ -275,6 +291,8 @@ def isa_to_RNASeq_runsheet(isazip, accession):
             samples[sample_name] = dict()
             samples[sample_name]["node"] = node_data
             study_node = study.nodes[node_key]
+
+            samples[sample_name]["read_length"] = extract_read_length(node_data)
 
             samples[sample_name]["factors"] = dict()
             for factor_name in factor_names:
@@ -345,7 +363,7 @@ def isa_to_RNASeq_runsheet(isazip, accession):
         # WRITE HEADER ############################################
         ###########################################################
         f.write(f"sample_name,read1_url,"\
-                f"paired_end,has_ERCC,version,organism,isa_key,protocol,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,raw_read_fastQC,trimmed_read_fastQC,{','.join(samples[sample_name]['factors'].keys())}")
+                f"paired_end,has_ERCC,version,organism,read_length,isa_key,protocol,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,raw_read_fastQC,trimmed_read_fastQC,{','.join(samples[sample_name]['factors'].keys())}")
         if project["paired_end"]:
             f.write(",read2_url,raw_read2,trimmed_read2")
         f.write("\n")
@@ -367,7 +385,7 @@ def isa_to_RNASeq_runsheet(isazip, accession):
                 read2_url = ""
 
             f.write(f"{sample_name},{read1_url},"\
-                    f"{project['paired_end']},{project['has_ercc']},{project['version']},{project['organism']}"\
+                    f"{project['paired_end']},{project['has_ercc']},{project['version']},{project['organism']},{sample['read_length']}"\
                     f",{project['isa_key']},anySampleType,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,raw_read_fastQC,trimmed_read_fastQC,{','.join(sample['factors'].values())}")
             if project["paired_end"]:
                 f.write(f",{read2_url},raw_read2,trimmed_read2")
