@@ -205,6 +205,25 @@ def extract_has_ercc(study):
     else:
         raise ValueError(f"Unexpectedly found more than 1 spike-in protocol. {spike_in_protocols}")
 
+def extract_organism(study):
+    """ returns organism studied.
+    Assumption: each GLDS study is for one organism
+    """
+    try:
+        for node, node_data in study.nodes.items():
+            if "source" in node:
+                if  organism_meta_attr := node_data.metadata.get("Characteristics[Organism]"):
+                    if organism := getattr(organism_meta_attr[0], "Organism", None):
+                        return organism
+                # catch lowercase cases
+                elif  organism_meta_attr := node_data.metadata.get("Characteristics[organism]"):
+                    if organism := getattr(organism_meta_attr[0], "organism", None):
+                        return organism
+    except Exception as e:
+        print(e)
+    raise ValueError(f"Could not find organism data. Last node metadata: {node_data.metadata}")
+
+
 def isa_to_RNASeq_runsheet(isazip, accession):
     isa = parse_isa_dir_from_zip(isazip)
 
@@ -213,6 +232,8 @@ def isa_to_RNASeq_runsheet(isazip, accession):
     # ASSSUMPTION: GeneLab ISA files only contain one study
     assert len(isa.studies) == 1
     study = isa.studies[0]
+
+
 
     assay = get_assay(study,
                       ASSAY_MEASUREMENT_TYPE = "transcription profiling",
@@ -313,20 +334,25 @@ def isa_to_RNASeq_runsheet(isazip, accession):
 
 
     project["has_ercc"] = extract_has_ercc(study)
+    project["organism"] = extract_organism(study)
 
     ##########################
     # WRITE OUTPUT
     ##########################
     output_file = Path(f"{accession}_RNASeq_runsheet.csv")
     with open(output_file, "w") as f:
-        # write header
+        ###########################################################
+        # WRITE HEADER ############################################
+        ###########################################################
         f.write(f"sample_name,read1_url,"\
-                f"paired_end,has_ERCC,version,isa_key,protocol,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,raw_read_fastQC,trimmed_read_fastQC,{','.join(samples[sample_name]['factors'].keys())}")
+                f"paired_end,has_ERCC,version,organism,isa_key,protocol,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,raw_read_fastQC,trimmed_read_fastQC,{','.join(samples[sample_name]['factors'].keys())}")
         if project["paired_end"]:
             f.write(",read2_url,raw_read2,trimmed_read2")
         f.write("\n")
 
-
+        ###########################################################
+        # WRITE SAMPLE ROWS #######################################
+        ###########################################################
         for sample_name, sample in samples.items():
             if project['paired_end']:
                 read1 = sample["file_names"][0]
@@ -341,7 +367,7 @@ def isa_to_RNASeq_runsheet(isazip, accession):
                 read2_url = ""
 
             f.write(f"{sample_name},{read1_url},"\
-                    f"{project['paired_end']},{project['has_ercc']},{project['version']}"\
+                    f"{project['paired_end']},{project['has_ercc']},{project['version']},{project['organism']}"\
                     f",{project['isa_key']},anySampleType,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,raw_read_fastQC,trimmed_read_fastQC,{','.join(sample['factors'].values())}")
             if project["paired_end"]:
                 f.write(f",{read2_url},raw_read2,trimmed_read2")
