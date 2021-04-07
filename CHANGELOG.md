@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - 2021-04-02
 ### Added
+  - Added additional readlength parsing keys.
+    - Tested on GLDS-48, 83, 104, 192, 194
+    - Note: GLDS-192 fails but this seems to be due to missing read length metadata.
+
+## [0.2.0] - 2021-04-02
+### Added
   - Added organism and readlength parsing to runsheet.
     - Tested on GLDS-48, 83, 104, 192, 194
     - Note: GLDS-192 fails but this seems to be due to missing read length metadata.

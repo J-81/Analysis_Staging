@@ -230,6 +230,9 @@ def extract_read_length(node_data):
         if  read_length_meta_attr := node_data.metadata.get("Parameter Value[Read Length,http://ncicb.nci.nih.gov/xml/owl/EVS/Thesaurus.owl#C153362,NCIT]"):
             if read_length := getattr(read_length_meta_attr[0], "Read_Length_http_ncicb_nci_nih_gov_xml_owl_EVS_Thesaurus_owl_C153362_NCIT", None):
                 return read_length
+        elif  read_length_meta_attr := node_data.metadata.get("Parameter Value[Read Length]"):
+            if read_length := getattr(read_length_meta_attr[0], "Read_Length", None):
+                return read_length
         # catch lowercase cases
         '''
         elif  read_length_meta_attr := node_data.metadata.get("Characteristics[read length]"):
