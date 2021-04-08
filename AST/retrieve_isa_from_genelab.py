@@ -307,17 +307,25 @@ def isa_to_RNASeq_runsheet(isazip, accession):
                 factor_key = f"Factor Value[{factor_name}]"
                 if node_data.metadata.get(factor_key):
                     # factor names as attributes replace spaces with '_'
-                    factor_value = getattr(node_data.metadata.get(factor_key)[0], factor_name.replace(" ","_").replace("-","_"), None)
+                    parse_1 = getattr(node_data.metadata.get(factor_key)[0], factor_name.replace(" ","_").replace("-","_"), None)
+                    # parse 2 example: GLDS-235 specifically key : Tissue Homogenate Preservation Time at -80C in RLT Buffer that maps to attribure Tissue_Homogenate_Preservation_Time_at_80C_in_RLT_Buffer
+                    parse_2 = getattr(node_data.metadata.get(factor_key)[0], factor_name.replace(" ","_").replace("-","_").replace("__","_"), None)
+                    factor_value = parse_1 if parse_1 else parse_2
                     #print(f"ASSAY: {factor_value}")
                     samples[sample_name]["factors"][factor_key] = factor_value
                 if study_node.metadata.get(factor_key):
                     #print(study_node.metadata.get(factor_key)[0])
                     # factor names as attributes replace spaces with '_'
-                    factor_value = getattr(study_node.metadata.get(factor_key)[0], factor_name.replace(" ","_").replace("-","_"), None)
-                    #print(f"STUDY: {factor_value}")
+                    parse_1 = getattr(study_node.metadata.get(factor_key)[0], factor_name.replace(" ","_").replace("-","_"), None)
+                    # parse 2 example: GLDS-235 specifically key : Tissue Homogenate Preservation Time at -80C in RLT Buffer that maps to attribure Tissue_Homogenate_Preservation_Time_at_80C_in_RLT_Buffer
+                    parse_2 = getattr(study_node.metadata.get(factor_key)[0], factor_name.replace(" ","_").replace("-","_").replace("__","_"), None)
+                    factor_value = parse_1 if parse_1 else parse_2
                     samples[sample_name]["factors"][factor_key] = factor_value
                 #
                 if factor_value == None:
+                    print(node_key, node_data)
+                    print("***")
+                    print(study_node.metadata)
                     raise ValueError(f"A value MUST exist for each sample and each factor. {(sample_name, factor_key, factor_value)}")
 
 
