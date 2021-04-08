@@ -318,8 +318,7 @@ def isa_to_RNASeq_runsheet(isazip, accession):
                     samples[sample_name]["factors"][factor_key] = factor_value
                 #
                 if factor_value == None:
-                    pass
-                    #print(sample_name, factor_key, factor_value)
+                    raise ValueError(f"A value MUST exist for each sample and each factor. {(sample_name, factor_key, factor_value)}")
 
 
             #return node_data, assay, study
