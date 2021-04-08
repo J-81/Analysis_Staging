@@ -333,7 +333,7 @@ def isa_to_RNASeq_runsheet(isazip, accession):
             file_names = FILE_EXTRACTION_FUNCTIONS[isa_key](node_data)
 
             # There should be 1 or 2 file names per sample only
-            assert len(file_names) in (1,2), f"Unexpected number of file_names ({len(file_names)}) for {sample}. File names {file_names}"
+            assert len(file_names) in (1,2), f"Unexpected number of file_names ({len(file_names)}) for {sample_name}. File names {file_names}"
             if len(file_names) == 1:
                 project['paired_end'] = False
             elif len(file_names) == 2:
