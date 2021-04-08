@@ -123,6 +123,10 @@ def parse_isa_dir_from_zip(isa_zip_path: str, pretty_print: bool = False) -> ISA
     ASSAY_INDENT = 3
 
     isa_temp_dir = _unzip_ISA(isa_zip_path)
+    # check if isa_temp_dir contains the files or an additional nested directory
+    contents = list(Path(isa_temp_dir).iterdir())
+    if len(contents) == 1: # format for nested isa zip files
+        isa_temp_dir = contents[0] # use nest dir that actually contains the files
     investigation = isatab_parser.parse(isatab_ref=isa_temp_dir)
 
     # only print if requested, useful for debugging parsing and data extraction
@@ -387,7 +391,7 @@ def isa_to_RNASeq_runsheet(isazip, accession):
                 read1_url = sample["file_urls"][0]
                 read2_url = ""
 
-            f.write(f"{sample_name},{read1_url},"\
+            f.write(f"{sample_name.replace(' ','_')},{read1_url},"\
                     f"{project['paired_end']},{project['has_ercc']},{project['version']},{project['organism']},{sample['read_length']}"\
                     f",{project['isa_key']},anySampleType,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,raw_read_fastQC,trimmed_read_fastQC,{','.join(sample['factors'].values())}")
             if project["paired_end"]:
