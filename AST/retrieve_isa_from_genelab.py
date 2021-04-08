@@ -293,7 +293,7 @@ def isa_to_RNASeq_runsheet(isazip, accession):
 
     for node_key, node_data in assay.nodes.items():
         if node_key.startswith(SAMPLE_PREFIX):
-            sample_name = node_data.name
+            sample_name = node_data.name.strip()
             print(f"Extracting data for sample: {sample_name}")
             samples[sample_name] = dict()
             samples[sample_name]["node"] = node_data
