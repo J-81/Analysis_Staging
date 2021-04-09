@@ -3,7 +3,7 @@
 WARNING: Testing with GLDS-194 implies the default url no longer works.
 Alternative url does work!
 """
-
+from __future__ import annotations
 from urllib.request import urlopen, quote, urlretrieve
 from json import loads
 from re import search
@@ -19,7 +19,7 @@ import shutil
 import importlib.resources
 
 from isatools.io import isatab_parser
-from isatools.io.isatab_parser import ISATabRecord
+from isatools.io.isatab_parser import ISATabRecord, NodeRecord
 import requests
 import peppy
 
@@ -223,25 +223,32 @@ def extract_organism(study):
         print(e)
     raise ValueError(f"Could not find organism data. Last node metadata: {node_data.metadata}")
 
-def extract_read_length(node_data):
+def extract_read_length(node_data: NodeRecord) -> tuple(int, int):
     """ Extract read length
+
+    :param node_data: A node record to parse for read length metadata
     """
+    read_lengths = None
     try:
         if  read_length_meta_attr := node_data.metadata.get("Parameter Value[Read Length,http://ncicb.nci.nih.gov/xml/owl/EVS/Thesaurus.owl#C153362,NCIT]"):
             if read_length := getattr(read_length_meta_attr[0], "Read_Length_http_ncicb_nci_nih_gov_xml_owl_EVS_Thesaurus_owl_C153362_NCIT", None):
-                return read_length
+                read_lengths =  (read_length, read_length)
         elif  read_length_meta_attr := node_data.metadata.get("Parameter Value[Read Length]"):
             if read_length := getattr(read_length_meta_attr[0], "Read_Length", None):
-                return read_length
-        # catch lowercase cases
-        '''
-        elif  read_length_meta_attr := node_data.metadata.get("Characteristics[read length]"):
-            if read_length := getattr(read_length_meta_attr[0], "read length", None):
-                return read_length
-        '''
+                read_lengths = (read_length, read_length)
+        # catch studies with different read lengths
+        elif  read_length_R1_meta_attr := node_data.metadata.get("Parameter Value[R1 Read Length]"):
+            read_length_R2_meta_attr = node_data.metadata.get("Parameter Value[R2 Read Length]")
+            if read_length_R1 := getattr(read_length_R1_meta_attr[0], "R1_Read_Length", None):
+                read_length_R2 = getattr(read_length_R2_meta_attr[0], "R2_Read_Length", None)
+                read_lengths = (read_length_R1, read_length_R2)
+
     except Exception as e:
         print(e)
-    raise ValueError(f"Could not find read length data. Last node metadata: {node_data.metadata}")
+    if read_lengths:
+        return read_lengths
+    else:
+        raise ValueError(f"Could not find read length data. Last node metadata: {node_data.metadata}")
 
 def isa_to_RNASeq_runsheet(isazip, accession):
     isa = parse_isa_dir_from_zip(isazip)
@@ -286,8 +293,10 @@ def isa_to_RNASeq_runsheet(isazip, accession):
                         }
     ALLOWED_RAW_READS_KEY = set(FILE_EXTRACTION_FUNCTIONS.keys())
 
+    # extract factor value names from study
     factor_names = get_factor_names(study)
 
+    # extract factor value values to samples
     for node_key, node_data in assay.nodes.items():
         if node_key.startswith(SAMPLE_PREFIX):
             sample_name = node_data.name.strip()
@@ -295,8 +304,6 @@ def isa_to_RNASeq_runsheet(isazip, accession):
             samples[sample_name] = dict()
             samples[sample_name]["node"] = node_data
             study_node = study.nodes[node_key]
-
-            samples[sample_name]["read_length"] = extract_read_length(node_data)
 
             samples[sample_name]["factors"] = dict()
             for factor_name in factor_names:
@@ -326,8 +333,6 @@ def isa_to_RNASeq_runsheet(isazip, accession):
                     raise ValueError(f"A value MUST exist for each sample and each factor. {(sample_name, factor_key, factor_value)}")
 
 
-            #return node_data, assay, study
-            #print(node_data)
             # extract filenames
             # find valid keys
             valid_keys = [key for key in node_data.metadata.keys() if key in ALLOWED_RAW_READS_KEY]
@@ -341,14 +346,17 @@ def isa_to_RNASeq_runsheet(isazip, accession):
             file_names = FILE_EXTRACTION_FUNCTIONS[isa_key](node_data)
 
             # There should be 1 or 2 file names per sample only
+            # check and set for each sample
             assert len(file_names) in (1,2), f"Unexpected number of file_names ({len(file_names)}) for {sample_name}. File names {file_names}"
             if len(file_names) == 1:
                 project['paired_end'] = False
             elif len(file_names) == 2:
                 project['paired_end'] = True
-
-
             samples[sample_name]["file_names"] = file_names
+
+            # extract read length: tuple(R1, R2) or if single tuple(R1, R1)
+            samples[sample_name]["read_length"] = extract_read_length(node_data)
+
             file_urls = list()
             for file_name in file_names:
                 #print(file_name)
@@ -359,49 +367,62 @@ def isa_to_RNASeq_runsheet(isazip, accession):
                 assert len(valid_urls) == 1, f"Bad Number Of Listings For File: {file_name}. There are {len(valid_urls)} listings for this file. There should be one and only one entry. File listing URL: {file_list_url}"
                 file_urls.append(valid_urls[0])
             samples[sample_name]["file_urls"] = file_urls
-            #print(samples)
 
-
+    # extract additional project wise metadata
     project["has_ercc"] = extract_has_ercc(study)
     project["organism"] = extract_organism(study)
 
-    ##########################
-    # WRITE OUTPUT
-    ##########################
+    return write_proto_runsheet(accession, samples, project)
+
+
+def write_proto_runsheet(accession: str, samples: dict, project: dict):
     output_file = Path(f"{accession}_RNASeq_runsheet.csv")
     with open(output_file, "w") as f:
         ###########################################################
         # WRITE HEADER ############################################
         ###########################################################
+        factor_string = ','.join(samples[list(samples)[0]]['factors'].keys())
         f.write(f"sample_name,read1_url,"\
-                f"paired_end,has_ERCC,version,organism,read_length,isa_key,protocol,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,raw_read_fastQC,trimmed_read_fastQC,{','.join(samples[sample_name]['factors'].keys())}")
+                f"paired_end,has_ERCC,version,organism,read_length_R1,isa_key,"\
+                f"protocol,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,"\
+                f"raw_read_fastQC,trimmed_read_fastQC,{factor_string}")
         if project["paired_end"]:
-            f.write(",read2_url,raw_read2,trimmed_read2")
+            f.write(",read2_url,raw_read2,trimmed_read2,read_length_R2")
         f.write("\n")
 
         ###########################################################
         # WRITE SAMPLE ROWS #######################################
         ###########################################################
         for sample_name, sample in samples.items():
+            sample_factor_values_string = ','.join(sample['factors'].values())
             if project['paired_end']:
                 read1 = sample["file_names"][0]
                 read2 = sample["file_names"][1]
                 read1_url = sample["file_urls"][0]
                 read2_url = sample["file_urls"][1]
-
+                read1_read_length = sample["read_length"][0]
+                read2_read_length = sample["read_length"][1]
             else:
                 read1 = sample["file_names"][0]
-                read2 = ""
+                read2 = None
                 read1_url = sample["file_urls"][0]
-                read2_url = ""
+                read2_url = None
+                read1_read_length = sample["read_length"][0]
+                read2_read_length = None
 
             f.write(f"{sample_name.replace(' ','_')},{read1_url},"\
-                    f"{project['paired_end']},{project['has_ercc']},{project['version']},{project['organism']},{sample['read_length']}"\
-                    f",{project['isa_key']},anySampleType,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,raw_read_fastQC,trimmed_read_fastQC,{','.join(sample['factors'].values())}")
+                    f"{project['paired_end']},{project['has_ercc']},"\
+                    f"{project['version']},{project['organism']},"\
+                    f"{read1_read_length}"\
+                    f",{project['isa_key']},anySampleType,raw_read1,"\
+                    f"trimmed_read1,STAR_Alignment,RSEM_Counts,"\
+                    f"raw_read_fastQC,trimmed_read_fastQC,"\
+                    f"{sample_factor_values_string}")
             if project["paired_end"]:
-                f.write(f",{read2_url},raw_read2,trimmed_read2")
+                f.write(f",{read2_url},raw_read2,"\
+                        f"trimmed_read2,{read2_read_length}")
             f.write("\n")
-    #print(f"Wrote {output_file}!")
+
     return output_file
 
 def _extract_files_merged(node):
