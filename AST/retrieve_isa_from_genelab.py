@@ -51,6 +51,7 @@ def get_isa(accession: str):
     glds_json = read_json(GLDS_URL_PREFIX + accession)
     try:
         _id = glds_json[0]["_id"]
+        print(f"File Listing ID: {_id}")
     except (AssertionError, TypeError, KeyError, IndexError):
         raise ValueError("Malformed JSON?")
     isa_entries = [
