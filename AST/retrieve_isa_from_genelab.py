@@ -7,6 +7,7 @@ Alternative url does work!
 from urllib.request import urlopen, quote, urlretrieve
 from json import loads
 from re import search
+import re
 import argparse
 import zipfile
 import tempfile
@@ -22,6 +23,10 @@ from isatools.io.isatab_parser import ISATabRecord
 import requests
 import peppy
 
+################################################################################
+# UTIILTIES
+################################################################################
+
 def _parse_args():
   """ Parse command line args.
   """
@@ -36,6 +41,15 @@ def _parse_args():
   args = parser.parse_args()
   return args
 
+
+def read_json(url):
+    with urlopen(url) as response:
+        return loads(response.read().decode())
+
+################################################################################
+# CONSTANTS
+################################################################################
+
 # Function to pull metadata zip from GeneLab
 # Credit to Kirill Grigorev
 GENELAB_ROOT = "https://genelab-data.ndc.nasa.gov"
@@ -43,15 +57,15 @@ GLDS_URL_PREFIX = GENELAB_ROOT + "/genelab/data/study/data/"
 FILELISTINGS_URL_PREFIX = GENELAB_ROOT + "/genelab/data/study/filelistings/"
 ISA_ZIP_REGEX = r'.*_metadata_.*[_-]ISA\.zip$'
 
-def read_json(url):
-    with urlopen(url) as response:
-        return loads(response.read().decode())
-
 def get_isa(accession: str):
+    """ Returns isa filename as well as GeneLab URLS from the associated file listing
+
+    :param accession: GLDS accession ID, e.g. GLDS-194
+    """
     glds_json = read_json(GLDS_URL_PREFIX + accession)
     try:
         _id = glds_json[0]["_id"]
-        print(f"File Listing ID: {_id}")
+        print(f"File Listing URL: {FILELISTINGS_URL_PREFIX + _id}")
     except (AssertionError, TypeError, KeyError, IndexError):
         raise ValueError("Malformed JSON?")
     isa_entries = [
@@ -80,9 +94,6 @@ def download_isa(accession: str, alternate_url: bool = False):
     """
     print(f"Accessing GeneLab API for ISA file. Accesion: {accession}")
     filename ,_, url, alt_url  = get_isa(accession)
-    # debug
-    #print(filename, url, alt_url)
-    # end debug
     if not Path(filename).is_file():
         print(f"Successfully retrieved ISA file location from API.")
         use_url = url if not alternate_url else alt_url
@@ -152,49 +163,33 @@ def parse_isa_dir_from_zip(isa_zip_path: str, pretty_print: bool = False) -> ISA
 
     return investigation
 
-def get_sample_names(isa_zip_path: str,
-                     samples_only: bool = False) -> None:
-    """ Extracts investigation sample names given a GLDS isa zip file path.
-    Returns a dictionary
-
-    :param isa_zip_path: path to isa zip file
-    :param samples_only: default, returns dictionary of values, if true, list of sample names only is returned
-    """
-    samples = dict()
-    samples_only_list = list()
-    investigation = parse_isa_dir_from_zip(isa_zip_path)
-    for study in investigation.studies:
-        # study level
-        study_key = f"STUDY: {study.metadata['Study Title']}"
-        samples[study_key] = dict()
-        for assay in study.assays:
-            # assay level
-            assay_key = f"ASSAY: {assay.metadata['Study Assay Measurement Type']}"
-            sample_nodes = [node for node in assay.nodes.values() if node.ntype == "Sample Name"]
-            new_samples = [sample_node.name for sample_node in sample_nodes]
-            samples[study_key][assay_key] = new_samples
-            samples_only_list.extend(new_samples)
-    if samples_only:
-        return list(set(samples_only_list)) # list,set trick to return only non-redudant set
-    return samples
-
 class AssayNotFoundException(Exception):
     pass
 
 def get_assay(study,
-              ASSAY_MEASUREMENT_TYPE,
-              ASSAY_TECHNOLOGY_TYPE):
-    assay = None
-    for _assay in study.assays:
-        #print(_assay.metadata)
-        if all((_assay.metadata['Study Assay Measurement Type'] == ASSAY_MEASUREMENT_TYPE,
-                _assay.metadata['Study Assay Technology Type'] == ASSAY_TECHNOLOGY_TYPE)):
-                assay = _assay
-                break
+              assay_measurement_type: str,
+              assay_technology_type: str):
+    """ Returns an assay that matches the supplied measurement and technology type
 
-    if not assay:
-        raise AssayNotFoundException(f"Did not find compatible assay after scanning metadata for measurement type: {ASSAY_MEASUREMENT_TYPE} and technology type: {ASSAY_TECHNOLOGY_TYPE}")
-    return assay
+
+    Matching based on regex
+        - is case insensitive
+        - treats the following between words as equivalent (" ","-","_")
+        - No seperator between words is also accepted
+
+    :param assay_measurement_type: Measurement type.  E.G.transcription profiling
+    :param assay_technology_type: Technology type.  E.G. RNA Sequencing (RNA-Seq)
+    """
+    measurement_regex = "(?i)\s*" + "[ ,\-,_]*".join(re.escape(assay_measurement_type).split("\ "))
+    technology_regex = "(?i)\s*" + "[ ,\-,_]*".join(re.escape(assay_technology_type).split("\ "))
+
+    for assay in study.assays:
+        if re.match(measurement_regex, assay.metadata['Study Assay Measurement Type']) and\
+           re.match(technology_regex, assay.metadata['Study Assay Technology Type']):
+            return assay
+    else:
+        raise AssayNotFoundException(f"Did not find compatible assay after scanning metadata for measurement type: {assay_measurement_type} and technology type: {assay_technology_type}")
+
 
 def get_factor_names(study):
     return  [f"{study_factor['Study Factor Name']}"
@@ -260,8 +255,8 @@ def isa_to_RNASeq_runsheet(isazip, accession):
 
 
     assay = get_assay(study,
-                      ASSAY_MEASUREMENT_TYPE = "transcription profiling",
-                      ASSAY_TECHNOLOGY_TYPE = "RNA Sequencing (RNA-Seq)")
+                      assay_measurement_type = "transcription profiling",
+                      assay_technology_type = "RNA Sequencing (RNA-Seq)")
     # Function to pull metadata zip from GeneLab
     # Adapted from get_isa script. credit: Kirill Grigorev
     GENELAB_ROOT = "https://genelab-data.ndc.nasa.gov"
@@ -278,7 +273,8 @@ def isa_to_RNASeq_runsheet(isazip, accession):
         project["version"] = glds_json[0]["version"]
     except (AssertionError, TypeError, KeyError, IndexError):
         raise ValueError("Malformed JSON?")
-    file_listing_json = read_json(FILELISTINGS_URL_PREFIX + _id)
+    file_list_url = FILELISTINGS_URL_PREFIX + _id
+    file_listing_json = read_json(file_list_url)
 
     # extract samples from assay
     samples = dict()
@@ -360,7 +356,7 @@ def isa_to_RNASeq_runsheet(isazip, accession):
                 valid_urls = [f"{GENELAB_ROOT}/genelab/static/media/dataset/{quote(entry['file_name'])}?version={entry['version']}" for entry in file_listing_json if entry["file_name"] == file_name]
 
                 # only one valid url should be associated
-                assert len(valid_urls) == 1, len(valid_urls)
+                assert len(valid_urls) == 1, f"Bad Number Of Listings For File: {file_name}. There are {len(valid_urls)} listings for this file. There should be one and only one entry. File listing URL: {file_list_url}"
                 file_urls.append(valid_urls[0])
             samples[sample_name]["file_urls"] = file_urls
             #print(samples)
