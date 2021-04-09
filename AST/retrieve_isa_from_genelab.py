@@ -17,6 +17,7 @@ from collections import defaultdict
 import sys
 import shutil
 import importlib.resources
+import traceback
 
 from isatools.io import isatab_parser
 from isatools.io.isatab_parser import ISATabRecord, NodeRecord
@@ -139,7 +140,11 @@ def parse_isa_dir_from_zip(isa_zip_path: str, pretty_print: bool = False) -> ISA
     contents = list(Path(isa_temp_dir).iterdir())
     if len(contents) == 1: # format for nested isa zip files
         isa_temp_dir = contents[0] # use nest dir that actually contains the files
-    investigation = isatab_parser.parse(isatab_ref=isa_temp_dir)
+    try:
+        investigation = isatab_parser.parse(isatab_ref=isa_temp_dir)
+    except UnicodeDecodeError as e:
+        traceback.print_exc()
+        raise Exception(f"ERROR: ISA.ZIP contents likely includes non-utf-8 decodable characters.  In the past, these includes things like degree signs in temperatures.")
 
     # only print if requested, useful for debugging parsing and data extraction
     if pretty_print:
