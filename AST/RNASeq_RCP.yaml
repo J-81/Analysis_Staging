@@ -3,8 +3,8 @@ sample_table: "tmp_proto_run_sheet.csv"
 
 sample_modifiers:
   append:
-    raw_read_multiqc: 00-RawData/FastQC_Reports/raw_multiqc_report/multiqc_data/multiqc_data.json
-    trimmed_read_multiqc: 01-TG_Preproc/FastQC_Reports/trimmed_multiqc_report/multiqc_data/multiqc_data.json
+    raw_read_multiqc: 00-RawData/FastQC_Reports/raw_multiqc_report/raw_multiqc_data/multiqc_data.json
+    trimmed_read_multiqc: 01-TG_Preproc/FastQC_Reports/trimmed_multiqc_report/trimmed_multiqc_data/multiqc_data.json
     DESeq2_NormCount: 04-DESeq2_NormCounts
     DESeq2_DGE: 05-DESeq2_DGE
 
