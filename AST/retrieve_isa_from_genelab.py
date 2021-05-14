@@ -550,8 +550,8 @@ def isa_to_Microarray_runsheet(isazip, accession, missing_col_allowed=False):
     s_file = s_file_glob[0]
 
     # correct i_file
-    i_file = clean_up_quotes(i_file)
-    print(i_file)
+    #i_file = clean_up_quotes(i_file)
+    #print(i_file)
 
     # parse into tables (study and assay files) or dictionary of tables (investigation file)
     i_df_dict = isatab.load_investigation(fp=i_file.open())
