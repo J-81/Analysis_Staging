@@ -37,6 +37,8 @@ def _parse_args():
   parser = argparse.ArgumentParser()
   parser.add_argument('--accession', metavar='GLDS-001', required=True,
                       help='GLDS accesion number')
+  parser.add_argument('--local-isa-zip', metavar='file_ISA.zip', required=False, default=None,
+                      help='A local path to an ISA zip file')
   parser.add_argument('--alternate-url', action="store_true", default=False,
                       help='Use alternate url, fetched by api script')
   parser.add_argument('--allow-missing-columns', action="store_true", default=False,
@@ -692,7 +694,10 @@ def _extract_file_raw(node):
 
 def main():
     args = _parse_args()
-    isazip = download_isa(args.accession, args.alternate_url)
+    if args.local_isa_zip:
+        isazip = Path(args.local_isa_zip)
+    else:
+        isazip = download_isa(args.accession, args.alternate_url)
 
     #if args.to_runsheet:
     #    assay
