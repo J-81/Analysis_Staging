@@ -692,8 +692,8 @@ def main():
     args = _parse_args()
     isazip = download_isa(args.accession, args.alternate_url)
 
-    if args.to_runsheet:
-        assay
+    #if args.to_runsheet:
+    #    assay
 
     if args.to_RNASeq_runsheet:
         # generate proto run sheet from ISA
