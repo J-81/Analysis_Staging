@@ -6,7 +6,7 @@ dirname = os.path.dirname(__file__)
 
 setup(
    name='AST',
-   version='0.3.1-dev',
+   version='0.3.2-dev',
    description='Tools for staging and setting up samplesheets.',
    author='Jonathan Oribello',
    author_email='jonathan.d.oribello@gmail.com',
