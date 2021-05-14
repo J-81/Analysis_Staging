@@ -16,7 +16,7 @@ setup(
            ],
    include_package_data=True,
    package_data={
-        "": ['RNASeq_RCP.yaml', 'Microarray.yaml'],
+        "": ['RNASeq_RCP.yaml', 'RNASeq_RCP_alt1.yaml', 'Microarray.yaml'],
                 },
    setup_requires=['pytest-runner'],
    tests_require=['pytest']

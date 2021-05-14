@@ -45,6 +45,8 @@ def _parse_args():
   #                      help='Creates Runsheet based on ISA file and GeneLab API.  This mode autodetects the assay types')
   parser.add_argument('--to-RNASeq-runsheet', action="store_true", default=False,
                       help='Creates RNASeq Runsheet based on ISA file and GeneLab API')
+  parser.add_argument('--alt-peppy-template', default=False,
+                      help='Use alternative template')
   parser.add_argument('--to-Microarray-runsheet', action="store_true", default=False,
                       help='Creates Microarray Runsheet based on ISA file and GeneLab API')
 
@@ -700,11 +702,15 @@ def main():
         proto_run_sheet = isa_to_RNASeq_runsheet(isazip, args.accession)
         shutil.copy(proto_run_sheet, "tmp_proto_run_sheet.csv")
         # load peppy project config
-        with importlib.resources.path("AST", "RNASeq_RCP.yaml") as template:
-            template_path = template
+        if args.alt_peppy_template:
+            with importlib.resources.path("AST", f"RNASeq_RCP_alt{args.alt_peppy_template}.yaml") as template:
+                template_path = template
+        else:
+            with importlib.resources.path("AST", "RNASeq_RCP.yaml") as template:
+                template_path = template
         shutil.copy(template_path, ".")
         p = peppy.Project(template_path.name)
-        filled_run_sheet_name = f"AST_autogen_{proto_run_sheet}"
+        filled_run_sheet_name = f"AST_autogen_template_{template_path.with_suffix('').name}_{proto_run_sheet}"
         p.sample_table.to_csv(filled_run_sheet_name)
         print(f"Autogenerating Paths for RNASeq run sheet")
         print(f"Template (in AST package): {template_path.name}")
