@@ -19,6 +19,9 @@ import shutil
 import importlib.resources
 import traceback
 
+import pandas as pd
+from pandas import DataFrame
+from isatools import isatab
 from isatools.io import isatab_parser
 from isatools.io.isatab_parser import ISATabRecord, NodeRecord
 import requests
@@ -36,8 +39,14 @@ def _parse_args():
                       help='GLDS accesion number')
   parser.add_argument('--alternate-url', action="store_true", default=False,
                       help='Use alternate url, fetched by api script')
+  parser.add_argument('--allow-missing-columns', action="store_true", default=False,
+                      help='Creates protorun sheet even if missing metadata columns')
+  #parser.add_argument('--to-runsheet', action="store_true", default=False,
+  #                      help='Creates Runsheet based on ISA file and GeneLab API.  This mode autodetects the assay types')
   parser.add_argument('--to-RNASeq-runsheet', action="store_true", default=False,
                       help='Creates RNASeq Runsheet based on ISA file and GeneLab API')
+  parser.add_argument('--to-Microarray-runsheet', action="store_true", default=False,
+                      help='Creates Microarray Runsheet based on ISA file and GeneLab API')
 
   args = parser.parse_args()
   return args
@@ -57,6 +66,64 @@ GENELAB_ROOT = "https://genelab-data.ndc.nasa.gov"
 GLDS_URL_PREFIX = GENELAB_ROOT + "/genelab/data/study/data/"
 FILELISTINGS_URL_PREFIX = GENELAB_ROOT + "/genelab/data/study/filelistings/"
 ISA_ZIP_REGEX = r'.*_metadata_.*[_-]ISA\.zip$'
+
+# assays with implemented runsheet templates
+# tuple of measurement type and technology type
+IMPLEMENTED_ASSAYS = [
+    ("transcription profiling","RNA Sequencing (RNA-Seq)"),
+    ("transcription profiling","Microarray"),
+]
+
+def get_assay_type(isa_zip_path: Path) -> (str, str):
+    """ Returns the assay type for a given isa_zip_path
+
+    :param isa_zip_path: Zip file containing genelab ISA files (handles nested directories as well as directly zipped files)
+    """
+    # unzip isa file
+    temp_dir = _unzip_ISA(isa_zip_path)
+
+    # find i_* file
+    i_file_glob = list(Path(isa_temp_dir).glob("i_*"))
+    assert 1 == len(i_file_glob), f"Error: there should be one and only 1 i_* file"
+    i_file = i_file_glob[0]
+
+    # get assay type
+    assert len(i_df_dict["s_assays"]) == 1, "Should be length of one (dataframe)"
+    i_assay_dict = query_assay_from_i_df_assays(
+                                    i_df_dict["s_assays"][0],
+                                    assay_measurement_type = "transcription profiling",
+                                    assay_technology_type = "DNA Microarray"
+                                    )
+
+def load_isa(isa_zip_path: Path) -> (dict, DataFrame, list[DataFrame]):
+    """ For a given isa_zip_path, loads represenations of the data as follows:
+
+    i_* file: a dictionary of keys:DataFrame
+    s_* file: a single DataFrame
+    a_* file(s): a list of DataFrames
+
+    :param isa_zip_path: isa zip file path.  As generated at GeneLab.
+    """
+    isa_temp_dir = _unzip_ISA(isazip)
+    # find files using glob
+    i_file_glob = list(Path(isa_temp_dir).glob("i_*"))
+    s_file_glob = list(Path(isa_temp_dir).glob("s_*"))
+    a_file_glob = list(Path(isa_temp_dir).glob("a_*"))
+
+    # ensure only one of each file was found in the unzipped file
+    assert 1 == len(i_file_glob) == len(s_file_glob), f"Error: there should be one and only 1 i_*, and s_* file"
+
+    # pull the single file from the list of one
+    i_file = i_file_glob[0]
+    s_file = s_file_glob[0]
+
+    # parse into tables (study and assay files) or dictionary of tables (investigation file)
+    i_df_dict = isatab.load_investigation(fp=i_file.open())
+    s_df = isatab.load_table(fp=s_file.open())
+    a_dfs = [isatab.load_table(fp=a_file) for a_file in a_file_glob]
+
+
+#def get_assay_type_from_i_df_assays()
 
 def get_isa(accession: str):
     """ Returns isa filename as well as GeneLab URLS from the associated file listing
@@ -115,11 +182,18 @@ def _unzip_ISA(isa_zip_path: str) -> str:
     """ Unzips ISA and places into a tmp contents folder.
     Returns path to temporary directory holding ISA zip file contents.
 
+    Occasionally, the isa zip folder contains a nested directory of the same name.
+    In these case, returns this nested folder containing isa files.
+
     :param isa_zip_path: path to isa zip file
     """
     temp_dir = tempfile.mkdtemp()
     with zipfile.ZipFile(isa_zip_path, 'r') as zip_ref:
         zip_ref.extractall(temp_dir)
+    # check if isa_temp_dir contains the files or an additional nested directory
+    contents = list(Path(temp_dir).iterdir())
+    if len(contents) == 1: # format for nested isa zip files
+        temp_dir = contents[0] # use nest dir that actually contains the files
     return temp_dir
 
 def parse_isa_dir_from_zip(isa_zip_path: str, pretty_print: bool = False) -> ISATabRecord:
@@ -136,10 +210,7 @@ def parse_isa_dir_from_zip(isa_zip_path: str, pretty_print: bool = False) -> ISA
     ASSAY_INDENT = 3
 
     isa_temp_dir = _unzip_ISA(isa_zip_path)
-    # check if isa_temp_dir contains the files or an additional nested directory
-    contents = list(Path(isa_temp_dir).iterdir())
-    if len(contents) == 1: # format for nested isa zip files
-        isa_temp_dir = contents[0] # use nest dir that actually contains the files
+
     try:
         investigation = isatab_parser.parse(isatab_ref=isa_temp_dir)
     except UnicodeDecodeError as e:
@@ -188,13 +259,50 @@ def get_assay(study,
     measurement_regex = "(?i)\s*" + "[ ,\-,_]*".join(re.escape(assay_measurement_type).split("\ "))
     technology_regex = "(?i)\s*" + "[ ,\-,_]*".join(re.escape(assay_technology_type).split("\ "))
 
-    for assay in study.assays:
+    found_assays = list()
+
+    for i, assay in enumerate(study.assays):
+        found_assays = (i, assay.metadata['Study Assay Measurement Type'], assay.metadata['Study Assay Technology Type'])
         if re.match(measurement_regex, assay.metadata['Study Assay Measurement Type']) and\
            re.match(technology_regex, assay.metadata['Study Assay Technology Type']):
             return assay
     else:
+        print(f"Found Assays: {found_assays}")
         raise AssayNotFoundException(f"Did not find compatible assay after scanning metadata for measurement type: {assay_measurement_type} and technology type: {assay_technology_type}")
 
+def query_assay_from_a_dfs(a_dfs,
+                        assay_measurement_type: str,
+                        assay_technology_type: str):
+    measurement_regex = "(?i)\s*" + "[ ,\-,_]*".join(re.escape(assay_measurement_type).split("\ "))
+    technology_regex = "(?i)\s*" + "[ ,\-,_]*".join(re.escape(assay_technology_type).split("\ "))
+
+    for i, assay_df in enumerate(a_dfs):
+        print(assay_df.columns)
+        found_measurement = assay_df['Study Assay Measurement Type'].unique()[0]
+        found_tech_type = assay_df['Study Assay Technology Type'].unique()[0]
+        found_assays = (i, found_measurement, found_tech_type)
+        if re.match(measurement_regex, found_measurement) and\
+           re.match(technology_regex, found_tech_type):
+            return assay_df
+    else:
+        print(f"Found Assays: {found_assays}")
+        raise AssayNotFoundException(f"Did not find compatible assay after scanning metadata for measurement type: {assay_measurement_type} and technology type: {assay_technology_type}")
+
+def query_assay_from_i_df_assays(i_df_assays,
+                                assay_measurement_type: str,
+                                assay_technology_type: str):
+    measurement_regex = "(?i)\s*" + "[ ,\-,_]*".join(re.escape(assay_measurement_type).split("\ "))
+    technology_regex = "(?i)\s*" + "[ ,\-,_]*".join(re.escape(assay_technology_type).split("\ "))
+
+    mask_matches_measurement = i_df_assays['Study Assay Measurement Type'].str.match(measurement_regex)
+    mask_matches_technology = i_df_assays['Study Assay Technology Type'].str.match(technology_regex)
+
+    x_df = i_df_assays.loc[mask_matches_measurement & mask_matches_technology]
+    if len(x_df) != 1:
+        raise AssayNotFoundException(f"Did not find compatible assay after scanning metadata for measurement type: {assay_measurement_type} and technology type: {assay_technology_type}")
+    else:
+        # take this single row, transpose and return as dictionary
+        return x_df.T.to_dict()[1]
 
 def get_factor_names(study):
     return  [f"{study_factor['Study Factor Name']}"
@@ -224,6 +332,10 @@ def extract_organism(study):
                 elif  organism_meta_attr := node_data.metadata.get("Characteristics[organism]"):
                     if organism := getattr(organism_meta_attr[0], "organism", None):
                         return organism
+                # catch entries with mesh
+                elif  organism_meta_attr := node_data.metadata.get("Characteristics[Organism,Http://Purl.Bioontology.Org/Ontology/Sty/T001,Mesh]]"):
+                        if organism := getattr(organism_meta_attr[0], "organism", None):
+                            return organism
     except Exception as e:
         print(e)
     raise ValueError(f"Could not find organism data. Last node metadata: {node_data.metadata}")
@@ -255,6 +367,59 @@ def extract_read_length(node_data: NodeRecord) -> tuple(int, int):
     else:
         raise ValueError(f"Could not find read length data. Last node metadata: {node_data.metadata}")
 
+def get_glds_filelisting_json(accession: str) -> (dict, str):
+    """ Return filelisting json accession number """
+    # extract file urls
+    glds_json = read_json(GLDS_URL_PREFIX + accession)
+    try:
+        _id = glds_json[0]["_id"]
+    except (AssertionError, TypeError, KeyError, IndexError):
+        raise ValueError("Malformed JSON?")
+    file_list_url = FILELISTINGS_URL_PREFIX + _id
+    file_listing_json = read_json(file_list_url)
+    return file_listing_json, glds_json[0]["version"]
+
+def get_organism_col_name(merged_df: DataFrame) -> str:
+    def valid_organism_col(col_name: str):
+        if any((
+            col_name.startswith("Characteristics[Organism"),
+            col_name.startswith("Characteristics[organism")
+            )):
+            return True
+        return False
+
+    organism_col = [col for col in merged_df.columns if valid_organism_col(col)]
+    assert len(organism_col) == 1, f"Should be one and only one organism column, but found {len(organism_col)}: {organism_col}"
+    return organism_col[0]
+
+def clean_up_quotes(i_file: Path) -> Path:
+    """ Converts double quotes within double quoted fields to single quotes.
+    Also removes trailing tabs before newlines.
+    """
+    fixed_lines = list()
+    cleaned_file_name = Path("cleaned_" + str(i_file.name))
+    with open(cleaned_file_name, "w") as corrected_i_file:
+        with open(i_file, "r") as f:
+            for i, line in enumerate(f.readlines()):
+                fixed_tokens = list()
+                tokens = line.split('\t')
+                for token in tokens:
+                    if token == '\n':
+                        # occurs when an additional trailing tab is included
+                        continue
+                    # assume double quoted field
+                    if token[0] == '"':
+                        token = '"' + token[1:-1].replace('"',"'") + '"'
+                        fixed_lines.append(i+1)
+                    fixed_tokens.append(token)
+                corrected_line = '\t'.join(fixed_tokens)
+                if corrected_line[-1] != '\n':
+                    corrected_line = corrected_line + '\n'
+                corrected_i_file.write(corrected_line)
+    if fixed_lines:
+        print("Fixed double quotes for lines: {}")
+    return Path(cleaned_file_name)
+
 def isa_to_RNASeq_runsheet(isazip, accession):
     isa = parse_isa_dir_from_zip(isazip)
 
@@ -269,24 +434,11 @@ def isa_to_RNASeq_runsheet(isazip, accession):
     assay = get_assay(study,
                       assay_measurement_type = "transcription profiling",
                       assay_technology_type = "RNA Sequencing (RNA-Seq)")
-    # Function to pull metadata zip from GeneLab
-    # Adapted from get_isa script. credit: Kirill Grigorev
-    GENELAB_ROOT = "https://genelab-data.ndc.nasa.gov"
-    GLDS_URL_PREFIX = GENELAB_ROOT + "/genelab/data/study/data/"
-    FILELISTINGS_URL_PREFIX = GENELAB_ROOT + "/genelab/data/study/filelistings/"
-
+    # start tracking project-wide data
     project = dict()
     project["GLDS"] = accession
 
-    # extract file urls
-    glds_json = read_json(GLDS_URL_PREFIX + accession)
-    try:
-        _id = glds_json[0]["_id"]
-        project["version"] = glds_json[0]["version"]
-    except (AssertionError, TypeError, KeyError, IndexError):
-        raise ValueError("Malformed JSON?")
-    file_list_url = FILELISTINGS_URL_PREFIX + _id
-    file_listing_json = read_json(file_list_url)
+    file_listing_json, project["version"] = get_glds_filelisting_json(accession)
 
     # extract samples from assay
     samples = dict()
@@ -379,6 +531,102 @@ def isa_to_RNASeq_runsheet(isazip, accession):
 
     return write_proto_runsheet(accession, samples, project)
 
+def isa_to_Microarray_runsheet(isazip, accession, missing_col_allowed=False):
+    isa_temp_dir = _unzip_ISA(isazip)
+    # find files using glob
+    i_file_glob = list(Path(isa_temp_dir).glob("i_*"))
+    s_file_glob = list(Path(isa_temp_dir).glob("s_*"))
+    a_file_glob = list(Path(isa_temp_dir).glob("a_*"))
+
+    # ensure only one of each file was found in the unzipped file
+    assert 1 == len(i_file_glob) == len(s_file_glob), f"Error: there should be one and only 1 i_*, and s_* file"
+
+    # pull the single file from the list of one
+    i_file = i_file_glob[0]
+    s_file = s_file_glob[0]
+
+    # correct i_file
+    i_file = clean_up_quotes(i_file)
+    print(i_file)
+
+    # parse into tables (study and assay files) or dictionary of tables (investigation file)
+    i_df_dict = isatab.load_investigation(fp=i_file.open())
+    s_df = isatab.load_table(fp=s_file.open())
+
+    # isolate correct assay
+    assert len(i_df_dict["s_assays"]) == 1, "Should be length of one (dataframe)"
+    i_assay_dict = query_assay_from_i_df_assays(
+                                    i_df_dict["s_assays"][0],
+                                    assay_measurement_type = "transcription profiling",
+                                    assay_technology_type = "DNA Microarray"
+                                    )
+    print(i_assay_dict)
+    # Load assay table
+    assay_file = isa_temp_dir / Path(i_assay_dict["Study Assay File Name"])
+    print(f"Loading Assay File: {assay_file}")
+    a_df = isatab.load_table(fp=assay_file.open())
+
+    # merge a_df and s_df
+    runsheet_df = a_df.merge(s_df, on="Sample Name", suffixes=("_assay","_sample"))
+    assert len(runsheet_df) != 0, f"Empty runsheet after merge, check assay and study files for sample name parity"
+
+    # titlecase all columns to make name matching easier
+    runsheet_df.columns = map(str.title, runsheet_df.columns)
+
+    # filter columns
+    # i.e. drop columns that do not affect processing parameters
+    KNOWN_DATA_FILE_COLUMN_VARIANTS = ["Array Data File","Parameter Value[array data file]"]
+    array_data_column = [col for col in runsheet_df.columns if col in KNOWN_DATA_FILE_COLUMN_VARIANTS]
+    assert len(array_data_column) == 1, f"One and only one column that indicates the array data file should exist"
+
+    factor_columns = [col for col in runsheet_df.columns if col.startswith("Factor Value[")]
+
+    # organism column name
+    organism_column = get_organism_col_name(runsheet_df)
+
+    columns_to_keep = ["Sample Name",
+                       "Source Name",
+                       "Label",
+                       "Hybridization Assay Name",
+                       organism_column] + factor_columns + array_data_column
+
+    try:
+        missing_columns = set(columns_to_keep).difference(set(runsheet_df.columns))
+        assert len(missing_columns) == 0, "Missing Required Metadata Columns Detected"
+        runsheet_df = runsheet_df[columns_to_keep]
+    except AssertionError: # this indicates a required column was not found
+        if missing_col_allowed:
+            print(f"MISSING COLUMNS ALLOWED: Missing columns: {missing_columns}.  Columns found: {list(runsheet_df.columns)}")
+            # Create missing columns
+            for missing_col in missing_columns:
+                runsheet_df[missing_col] = "COULD NOT BE EXTRACTED FROM ISA"
+            runsheet_df = runsheet_df[columns_to_keep]
+        else:
+            raise KeyError(f"Missing columns Error: {missing_columns}.  Columns found: {list(runsheet_df.columns)}")
+    # rename array data column
+    runsheet_df = runsheet_df.rename(mapper={variant:"array_data_file" for variant in KNOWN_DATA_FILE_COLUMN_VARIANTS}, axis='columns')
+
+    # populate with additional dataset-wide
+    runsheet_df["GLDS"] = accession
+    runsheet_df["Study Assay Measurement Type"] = i_assay_dict["Study Assay Measurement Type"]
+    runsheet_df["Study Assay Technolgy Type"] = i_assay_dict["Study Assay Technology Type"]
+    runsheet_df["Study Assay Technology Platform"] = i_assay_dict["Study Assay Technology Platform"]
+
+    # get file urls
+    file_listing_json, runsheet_df["version"] = get_glds_filelisting_json(accession)
+
+
+    def _get_file_url(file_name, file_listing_json):
+        file_url = [f"{GENELAB_ROOT}/genelab/static/media/dataset/{quote(entry['file_name'])}?version={entry['version']}" for entry in file_listing_json if entry["file_name"] == file_name]
+        assert len(file_url) == 1, f"One and only one file url should exist for each file. {file_name}"
+        return file_url[0]
+    # populate file urls
+    runsheet_df["array_data_file_path"] = runsheet_df["array_data_file"].apply(lambda file_name: _get_file_url(file_name, file_listing_json))
+    runsheet_df["is_array_data_file_compressed"] = runsheet_df["array_data_file"].str.endswith(".gz")
+
+    tmp_proto = f"{accession}_proto_run_sheet.csv"
+    runsheet_df.to_csv(tmp_proto, index=False)
+    return tmp_proto
 
 def write_proto_runsheet(accession: str, samples: dict, project: dict):
     output_file = Path(f"{accession}_RNASeq_runsheet.csv")
@@ -444,6 +692,9 @@ def main():
     args = _parse_args()
     isazip = download_isa(args.accession, args.alternate_url)
 
+    if args.to_runsheet:
+        assay
+
     if args.to_RNASeq_runsheet:
         # generate proto run sheet from ISA
         proto_run_sheet = isa_to_RNASeq_runsheet(isazip, args.accession)
@@ -460,6 +711,26 @@ def main():
         print(f"Filled Run Sheet: {filled_run_sheet_name}")
         os.remove(proto_run_sheet)
         os.remove("tmp_proto_run_sheet.csv")
+
+    elif args.to_Microarray_runsheet:
+        # generate proto run sheet from ISA
+        proto_run_sheet = isa_to_Microarray_runsheet(isazip, args.accession, args.allow_missing_columns)
+        '''shutil.copy(proto_run_sheet, "tmp_proto_run_sheet.csv")
+        # load peppy project config
+        with importlib.resources.path("AST", "Microarray.yaml") as template:
+            template_path = template
+        shutil.copy(template_path, ".")
+        p = peppy.Project(template_path.name)
+        filled_run_sheet_name = f"AST_MICROARRAY_v1_{proto_run_sheet}"
+        p.sample_table.to_csv(filled_run_sheet_name)
+        print(f"Autogenerating Paths for Microarray run sheet")
+        print(f"Template (in AST package): {template_path.name}")
+        print(f"Filled Run Sheet: {filled_run_sheet_name}")
+        os.remove(proto_run_sheet)
+        os.remove("tmp_proto_run_sheet.csv")'''
+
+    else:
+        print(f"No Runsheet generation requested")
 
 if __name__ == "__main__":
     main()

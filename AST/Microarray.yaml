@@ -1,0 +1,7 @@
+pep_version: "2.0.0"
+sample_table: "tmp_proto_run_sheet.csv"
+
+sample_modifiers:
+  append:
+
+  derive:
