@@ -294,7 +294,9 @@ def query_assay_from_a_dfs(a_dfs,
 
 def query_assay_from_i_df_assays(i_df_assays,
                                 assay_measurement_type: str,
-                                assay_technology_type: str):
+                                assay_technology_type: str) -> dict:
+    """ Returns all requested assays
+    """
     measurement_regex = "(?i)\s*" + "[ ,\-,_]*".join(re.escape(assay_measurement_type).split("\ "))
     technology_regex = "(?i)\s*" + "[ ,\-,_]*".join(re.escape(assay_technology_type).split("\ "))
 
@@ -302,11 +304,11 @@ def query_assay_from_i_df_assays(i_df_assays,
     mask_matches_technology = i_df_assays['Study Assay Technology Type'].str.match(technology_regex)
 
     x_df = i_df_assays.loc[mask_matches_measurement & mask_matches_technology]
-    if len(x_df) != 1:
+    if len(x_df) == 0:
         raise AssayNotFoundException(f"Did not find compatible assay after scanning metadata for measurement type: {assay_measurement_type} and technology type: {assay_technology_type}")
     else:
         # take this single row, transpose and return as dictionary
-        return x_df.T.to_dict()[1]
+        return list(x_df.T.to_dict().values())
 
 def get_factor_names(study):
     return  [f"{study_factor['Study Factor Name']}"
@@ -559,78 +561,96 @@ def isa_to_Microarray_runsheet(isazip, accession, missing_col_allowed=False):
 
     # isolate correct assay
     assert len(i_df_dict["s_assays"]) == 1, "Should be length of one (dataframe)"
-    i_assay_dict = query_assay_from_i_df_assays(
+    search_type = 'transcription profiling'
+    search_measurement = 'DNA Microarray'
+    print(f"Searching for assays where Type = {search_type} and Measurement = {search_measurement}")
+    i_assay_dicts = query_assay_from_i_df_assays(
                                     i_df_dict["s_assays"][0],
                                     assay_measurement_type = "transcription profiling",
                                     assay_technology_type = "DNA Microarray"
                                     )
-    print(i_assay_dict)
-    # Load assay table
-    assay_file = isa_temp_dir / Path(i_assay_dict["Study Assay File Name"])
-    print(f"Loading Assay File: {assay_file}")
-    a_df = isatab.load_table(fp=assay_file.open())
+    #print(i_assay_dicts)
+    for i_assay_dict in i_assay_dicts:
+        print('='*40)
+        # Load assay table
+        assay_file = isa_temp_dir / Path(i_assay_dict["Study Assay File Name"])
+        print(f"Loading Valid Assay File: {assay_file}")
+        a_df = isatab.load_table(fp=assay_file.open())
 
-    # merge a_df and s_df
-    runsheet_df = a_df.merge(s_df, on="Sample Name", suffixes=("_assay","_sample"))
-    assert len(runsheet_df) != 0, f"Empty runsheet after merge, check assay and study files for sample name parity"
+        # merge a_df and s_df
+        runsheet_df = a_df.merge(s_df, on="Sample Name", suffixes=("_assay","_sample"))
+        assert len(runsheet_df) != 0, f"Empty runsheet after merge, check assay and study files for sample name parity"
 
-    # titlecase all columns to make name matching easier
-    runsheet_df.columns = map(str.title, runsheet_df.columns)
+        # titlecase all columns to make name matching easier
+        runsheet_df.columns = map(str.title, runsheet_df.columns)
 
-    # filter columns
-    # i.e. drop columns that do not affect processing parameters
-    KNOWN_DATA_FILE_COLUMN_VARIANTS = ["Array Data File","Parameter Value[array data file]"]
-    array_data_column = [col for col in runsheet_df.columns if col in KNOWN_DATA_FILE_COLUMN_VARIANTS]
-    assert len(array_data_column) == 1, f"One and only one column that indicates the array data file should exist"
+        # filter columns
+        # i.e. drop columns that do not affect processing parameters
+        KNOWN_DATA_FILE_COLUMN_VARIANTS = ["Array Data File","Parameter Value[array data file]"]
+        array_data_column = [col for col in runsheet_df.columns if col in KNOWN_DATA_FILE_COLUMN_VARIANTS]
+        assert len(array_data_column) == 1, f"One and only one column that indicates the array data file should exist"
 
-    factor_columns = [col for col in runsheet_df.columns if col.startswith("Factor Value[")]
+        factor_columns = [col for col in runsheet_df.columns if col.startswith("Factor Value[")]
 
-    # organism column name
-    organism_column = get_organism_col_name(runsheet_df)
+        # check for factor value unit columns
+        for factor_col in factor_columns:
+            factor_col_index = list(runsheet_df.columns).index(factor_col)
+            # check next column if labeled starting with "Unit"
+            putative_unit_col = runsheet_df.columns[factor_col_index + 1]
+            if putative_unit_col.startswith("Unit"):
+                print(f"\tNOTE: Found 'Units' column for '{factor_col}', appending to column")
+                # replace this factor column with units appended
+                runsheet_df[factor_col] = runsheet_df[factor_col] + runsheet_df[putative_unit_col]
+            else:
+                print(f"\tNOTE: No 'Units' column found after '{factor_col}'")
 
-    columns_to_keep = ["Sample Name",
-                       "Source Name",
-                       "Label",
-                       "Hybridization Assay Name",
-                       organism_column] + factor_columns + array_data_column
+        # organism column name
+        organism_column = get_organism_col_name(runsheet_df)
 
-    try:
-        missing_columns = set(columns_to_keep).difference(set(runsheet_df.columns))
-        assert len(missing_columns) == 0, "Missing Required Metadata Columns Detected"
-        runsheet_df = runsheet_df[columns_to_keep]
-    except AssertionError: # this indicates a required column was not found
-        if missing_col_allowed:
-            print(f"MISSING COLUMNS ALLOWED: Missing columns: {missing_columns}.  Columns found: {list(runsheet_df.columns)}")
-            # Create missing columns
-            for missing_col in missing_columns:
-                runsheet_df[missing_col] = "COULD NOT BE EXTRACTED FROM ISA"
+        columns_to_keep = ["Sample Name",
+                           "Source Name",
+                           "Label",
+                           "Hybridization Assay Name",
+                           organism_column] + factor_columns + array_data_column
+
+        try:
+            missing_columns = set(columns_to_keep).difference(set(runsheet_df.columns))
+            assert len(missing_columns) == 0, "Missing Required Metadata Columns Detected"
             runsheet_df = runsheet_df[columns_to_keep]
-        else:
-            raise KeyError(f"Missing columns Error: {missing_columns}.  Columns found: {list(runsheet_df.columns)}")
-    # rename array data column
-    runsheet_df = runsheet_df.rename(mapper={variant:"array_data_file" for variant in KNOWN_DATA_FILE_COLUMN_VARIANTS}, axis='columns')
+        except AssertionError: # this indicates a required column was not found
+            if missing_col_allowed:
+                #print(f"MISSING COLUMNS ALLOWED: Missing columns: '{missing_columns}'.  Columns found: {list(runsheet_df.columns)}")
+                # Create missing columns
+                for missing_col in missing_columns:
+                    print(f"\tWARNING: Missing Metadata '{missing_col}'. Filled with string: 'COULD NOT BE EXTRACTED FROM ISA'")
+                    runsheet_df[missing_col] = "COULD NOT BE EXTRACTED FROM ISA"
+                runsheet_df = runsheet_df[columns_to_keep]
+            else:
+                raise KeyError(f"Missing columns Error: '{missing_columns}'.  Columns found: {list(runsheet_df.columns)}")
+        # rename array data column
+        runsheet_df = runsheet_df.rename(mapper={variant:"array_data_file" for variant in KNOWN_DATA_FILE_COLUMN_VARIANTS}, axis='columns')
 
-    # populate with additional dataset-wide
-    runsheet_df["GLDS"] = accession
-    runsheet_df["Study Assay Measurement Type"] = i_assay_dict["Study Assay Measurement Type"]
-    runsheet_df["Study Assay Technolgy Type"] = i_assay_dict["Study Assay Technology Type"]
-    runsheet_df["Study Assay Technology Platform"] = i_assay_dict["Study Assay Technology Platform"]
+        # populate with additional dataset-wide
+        runsheet_df["GLDS"] = accession
+        runsheet_df["Study Assay Measurement Type"] = i_assay_dict["Study Assay Measurement Type"]
+        runsheet_df["Study Assay Technolgy Type"] = i_assay_dict["Study Assay Technology Type"]
+        runsheet_df["Study Assay Technology Platform"] = i_assay_dict["Study Assay Technology Platform"]
 
-    # get file urls
-    file_listing_json, runsheet_df["version"] = get_glds_filelisting_json(accession)
+        # get file urls
+        file_listing_json, runsheet_df["version"] = get_glds_filelisting_json(accession)
 
 
-    def _get_file_url(file_name, file_listing_json):
-        file_url = [f"{GENELAB_ROOT}/genelab/static/media/dataset/{quote(entry['file_name'])}?version={entry['version']}" for entry in file_listing_json if entry["file_name"] == file_name]
-        assert len(file_url) == 1, f"One and only one file url should exist for each file. {file_name}"
-        return file_url[0]
-    # populate file urls
-    runsheet_df["array_data_file_path"] = runsheet_df["array_data_file"].apply(lambda file_name: _get_file_url(file_name, file_listing_json))
-    runsheet_df["is_array_data_file_compressed"] = runsheet_df["array_data_file"].str.endswith(".gz")
+        def _get_file_url(file_name, file_listing_json):
+            file_url = [f"{GENELAB_ROOT}/genelab/static/media/dataset/{quote(entry['file_name'])}?version={entry['version']}" for entry in file_listing_json if entry["file_name"] == file_name]
+            assert len(file_url) == 1, f"One and only one file url should exist for each file. {file_name}"
+            return file_url[0]
+        # populate file urls
+        runsheet_df["array_data_file_path"] = runsheet_df["array_data_file"].apply(lambda file_name: _get_file_url(file_name, file_listing_json))
+        runsheet_df["is_array_data_file_compressed"] = runsheet_df["array_data_file"].str.endswith(".gz")
 
-    tmp_proto = f"{accession}_proto_run_sheet.csv"
-    runsheet_df.to_csv(tmp_proto, index=False)
-    return tmp_proto
+        tmp_proto = f"{accession}_{assay_file.with_suffix('').name}_proto_run_sheet.csv"
+        runsheet_df.to_csv(tmp_proto, index=False)
+        yield tmp_proto
 
 def write_proto_runsheet(accession: str, samples: dict, project: dict):
     output_file = Path(f"{accession}_RNASeq_runsheet.csv")
@@ -725,7 +745,8 @@ def main():
 
     elif args.to_Microarray_runsheet:
         # generate proto run sheet from ISA
-        proto_run_sheet = isa_to_Microarray_runsheet(isazip, args.accession, args.allow_missing_columns)
+        for proto_run_sheet in isa_to_Microarray_runsheet(isazip, args.accession, args.allow_missing_columns):
+            print(f"Generated: {proto_run_sheet}")
         '''shutil.copy(proto_run_sheet, "tmp_proto_run_sheet.csv")
         # load peppy project config
         with importlib.resources.path("AST", "Microarray.yaml") as template:
