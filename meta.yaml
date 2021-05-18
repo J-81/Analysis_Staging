@@ -16,7 +16,7 @@ requirements:
 
 test:
   imports:
-    -
+    - ast
 
 about:
   home: https://github.com/J-81/Analysis_Staging
