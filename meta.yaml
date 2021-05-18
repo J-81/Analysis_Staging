@@ -12,7 +12,9 @@ requirements:
     - setuptools
 
   run:
-    - python
+    - python >3.8.0
+    - peppy
+    - isatools
 
 test:
   imports:
