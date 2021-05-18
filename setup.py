@@ -6,7 +6,7 @@ dirname = os.path.dirname(__file__)
 
 setup(
    name='AST',
-   version='0.3.4-dev',
+   version='0.3.0',
    description='Tools for staging and setting up samplesheets.',
    author='Jonathan Oribello',
    author_email='jonathan.d.oribello@gmail.com',
@@ -18,6 +18,11 @@ setup(
    package_data={
         "": ['RNASeq_RCP.yaml', 'RNASeq_RCP_alt1.yaml', 'Microarray.yaml'],
                 },
+   python_requires='>3.8.0',
+   install_requires=[
+    'isatools',
+    'peppy',
+   ],
    setup_requires=['pytest-runner'],
    tests_require=['pytest']
 )

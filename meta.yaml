@@ -1,0 +1,22 @@
+package:
+  name: ast
+  version: 0.3.0
+
+source:
+  git_rev: 0.3.0
+  git_url: https://github.com/J-81/Analysis_Staging.git
+
+requirements:
+  build:
+    - python
+    - setuptools
+
+  run:
+    - python
+
+test:
+  imports:
+    -
+
+about:
+  home: https://github.com/J-81/Analysis_Staging
