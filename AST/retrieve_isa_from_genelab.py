@@ -36,7 +36,7 @@ def _parse_args():
   """
   parser = argparse.ArgumentParser()
   parser.add_argument('--accession', metavar='GLDS-001', required=True,
-                      help='GLDS accesion number')
+                      help='GLDS accession number')
   parser.add_argument('--local-isa-zip', metavar='file_ISA.zip', required=False, default=None,
                       help='A local path to an ISA zip file')
   parser.add_argument('--alternate-url', action="store_true", default=False,
@@ -164,13 +164,11 @@ def download_isa(accession: str, alternate_url: bool = False):
     :param accession: GLDS accession number, e.g. GLDS-194
     :param alternate_url: if true, uses alternative url, both alternate and default url should fetch the same file
     """
-    print(f"Accessing GeneLab API for ISA file. Accesion: {accession}")
+    print(f"Accessing GeneLab API for ISA file. Accession: {accession}")
     filename ,_, url, alt_url  = get_isa(accession)
     if not Path(filename).is_file():
         print(f"Successfully retrieved ISA file location from API.")
         use_url = url if not alternate_url else alt_url
-        if not alternate_url:
-            print("WARNING: The default URL did not work in tests.  If it still fails use the alternate url!")
         print(f"Downloading from {use_url}.")
         r = requests.get(use_url)
         # If the response was successful, no Exception will be raised
