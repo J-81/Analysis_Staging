@@ -488,7 +488,8 @@ def isa_to_RNASeq_runsheet(isazip, accession):
             samples[sample_name]["file_names"] = file_names
 
             # extract read length: tuple(R1, R2) or if single tuple(R1, R1)
-            samples[sample_name]["read_length"] = extract_read_length(node_data)
+            # samples[sample_name]["read_length"] = extract_read_length(node_data)
+            # Replaced in workflow by read length from fastqc
 
             file_urls = list()
             for file_name in file_names:
@@ -630,11 +631,11 @@ def write_proto_runsheet(accession: str, samples: dict, project: dict):
         ###########################################################
         factor_string = ','.join(samples[list(samples)[0]]['factors'].keys())
         f.write(f"sample_name,read1_url,"\
-                f"paired_end,has_ERCC,version,organism,read_length_R1,isa_key,"\
+                f"paired_end,has_ERCC,version,organism,isa_key,"\
                 f"protocol,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,"\
                 f"raw_read_fastQC,trimmed_read_fastQC,{factor_string}")
         if project["paired_end"]:
-            f.write(",read2_url,raw_read2,trimmed_read2,read_length_R2")
+            f.write(",read2_url,raw_read2,trimmed_read2,")
         f.write("\n")
 
         ###########################################################
@@ -647,27 +648,26 @@ def write_proto_runsheet(accession: str, samples: dict, project: dict):
                 read2 = sample["file_names"][1]
                 read1_url = sample["file_urls"][0]
                 read2_url = sample["file_urls"][1]
-                read1_read_length = sample["read_length"][0]
-                read2_read_length = sample["read_length"][1]
+                # read1_read_length = sample["read_length"][0]
+                # read2_read_length = sample["read_length"][1]
             else:
                 read1 = sample["file_names"][0]
                 read2 = None
                 read1_url = sample["file_urls"][0]
                 read2_url = None
-                read1_read_length = sample["read_length"][0]
-                read2_read_length = None
+                # read1_read_length = sample["read_length"][0]
+                # read2_read_length = None
 
             f.write(f"{sample_name.replace(' ','_')},{read1_url},"\
                     f"{project['paired_end']},{project['has_ercc']},"\
                     f"{project['version']},{project['organism']},"\
-                    f"{read1_read_length}"\
-                    f",{project['isa_key']},anySampleType,raw_read1,"\
+                    f"{project['isa_key']},anySampleType,raw_read1,"\
                     f"trimmed_read1,STAR_Alignment,RSEM_Counts,"\
                     f"raw_read_fastQC,trimmed_read_fastQC,"\
                     f"{sample_factor_values_string}")
             if project["paired_end"]:
                 f.write(f",{read2_url},raw_read2,"\
-                        f"trimmed_read2,{read2_read_length}")
+                        f"trimmed_read2")
             f.write("\n")
 
     return output_file
