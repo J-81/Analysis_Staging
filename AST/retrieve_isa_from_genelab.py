@@ -396,34 +396,6 @@ def get_organism_col_name(merged_df: DataFrame) -> str:
     assert len(organism_col) == 1, f"Should be one and only one organism column, but found {len(organism_col)}: {organism_col}"
     return organism_col[0]
 
-def clean_up_quotes(i_file: Path) -> Path:
-    """ Converts double quotes within double quoted fields to single quotes.
-    Also removes trailing tabs before newlines.
-    """
-    fixed_lines = list()
-    cleaned_file_name = Path("cleaned_" + str(i_file.name))
-    with open(cleaned_file_name, "w") as corrected_i_file:
-        with open(i_file, "r") as f:
-            for i, line in enumerate(f.readlines()):
-                fixed_tokens = list()
-                tokens = line.split('\t')
-                for token in tokens:
-                    if token == '\n':
-                        # occurs when an additional trailing tab is included
-                        continue
-                    # assume double quoted field
-                    if token[0] == '"':
-                        token = '"' + token[1:-1].replace('"',"'") + '"'
-                        fixed_lines.append(i+1)
-                    fixed_tokens.append(token)
-                corrected_line = '\t'.join(fixed_tokens)
-                if corrected_line[-1] != '\n':
-                    corrected_line = corrected_line + '\n'
-                corrected_i_file.write(corrected_line)
-    if fixed_lines:
-        print("Fixed double quotes for lines: {}")
-    return Path(cleaned_file_name)
-
 def isa_to_RNASeq_runsheet(isazip, accession):
     isa = parse_isa_dir_from_zip(isazip)
 
