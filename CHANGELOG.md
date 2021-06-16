@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2021-06-16
+### Fixed
+  - Added in "spike-in protocol" as a protocol type that indicates ERCC spike-in
+
 ## [0.3.0] - 2021-06-16
 ### Changed
   - Proto run sheet is no longer deleted by default.
