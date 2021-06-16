@@ -706,11 +706,11 @@ def main():
         shutil.copy(template_path, ".")
         p = peppy.Project(template_path.name)
         filled_run_sheet_name = f"AST_autogen_template_{template_path.with_suffix('').name}_{proto_run_sheet}"
-        p.sample_table.to_csv(filled_run_sheet_name)
+        p.sample_table.drop(columns="sample_name").to_csv(filled_run_sheet_name) # "sample_name" column is dropped as the index is also sample_name and written to file
         print(f"Autogenerating Paths for RNASeq run sheet")
         print(f"Template (in AST package): {template_path.name}")
         print(f"Filled Run Sheet: {filled_run_sheet_name}")
-        os.remove(proto_run_sheet)
+        #os.remove(proto_run_sheet)
         os.remove("tmp_proto_run_sheet.csv")
 
     elif args.to_Microarray_runsheet:
