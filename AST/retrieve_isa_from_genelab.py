@@ -601,6 +601,11 @@ def isa_to_Microarray_runsheet(isazip, accession, missing_col_allowed=False):
         # rename array data column
         runsheet_df = runsheet_df.rename(mapper={variant:"array_data_file" for variant in KNOWN_DATA_FILE_COLUMN_VARIANTS}, axis='columns')
 
+        # rename sample to peppy compliant name
+        runsheet_df = runsheet_df.rename(mapper={"Sample Name":"sample_name"}, axis="columns")
+        print(runsheet_df.head())
+        print(runsheet_df.columns)
+
         # populate with additional dataset-wide
         runsheet_df["GLDS"] = accession
         runsheet_df["Study Assay Measurement Type"] = i_assay_dict["Study Assay Measurement Type"]
@@ -717,19 +722,23 @@ def main():
         # generate proto run sheet from ISA
         for proto_run_sheet in isa_to_Microarray_runsheet(isazip, args.accession, args.allow_missing_columns):
             print(f"Generated: {proto_run_sheet}")
-        '''shutil.copy(proto_run_sheet, "tmp_proto_run_sheet.csv")
+        shutil.copy(proto_run_sheet, "tmp_proto_run_sheet.csv")
         # load peppy project config
-        with importlib.resources.path("AST", "Microarray.yaml") as template:
-            template_path = template
+        if args.alt_peppy_template:
+            with importlib.resources.path("AST", f"RNASeq_RCP_alt{args.alt_peppy_template}.yaml") as template:
+                template_path = template
+        else:
+            with importlib.resources.path("AST", "Microarray.yaml") as template:
+                template_path = template
         shutil.copy(template_path, ".")
         p = peppy.Project(template_path.name)
-        filled_run_sheet_name = f"AST_MICROARRAY_v1_{proto_run_sheet}"
-        p.sample_table.to_csv(filled_run_sheet_name)
+        filled_run_sheet_name = f"AST_autogen_template_{template_path.with_suffix('').name}_{proto_run_sheet}"
+        p.sample_table.to_csv(filled_run_sheet_name, index=False)
         print(f"Autogenerating Paths for Microarray run sheet")
         print(f"Template (in AST package): {template_path.name}")
         print(f"Filled Run Sheet: {filled_run_sheet_name}")
         os.remove(proto_run_sheet)
-        os.remove("tmp_proto_run_sheet.csv")'''
+        os.remove("tmp_proto_run_sheet.csv")
 
     else:
         print(f"No Runsheet generation requested")

@@ -3,5 +3,6 @@ sample_table: "tmp_proto_run_sheet.csv"
 
 sample_modifiers:
   append:
-
-  derive:
+    raw_data: 00-RawData
+    normalized_data: 01-NormalizedData
+    limma_dge: 02-Limma_DGE
