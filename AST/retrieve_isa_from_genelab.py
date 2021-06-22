@@ -618,14 +618,18 @@ def isa_to_Microarray_runsheet(isazip, accession, missing_col_allowed=False):
 
         def _get_file_url(file_name, file_listing_json):
             file_url = [f"{GENELAB_ROOT}/genelab/static/media/dataset/{quote(entry['file_name'])}?version={entry['version']}" for entry in file_listing_json if entry["file_name"] == file_name]
-            assert len(file_url) == 1, f"One and only one file url should exist for each file. {file_name}"
+            #assert len(file_url) == 1, f"One and only one file url should exist for each file. {file_name}"
             return file_url[0]
         # populate file urls
         runsheet_df["array_data_file_path"] = runsheet_df["array_data_file"].apply(lambda file_name: _get_file_url(file_name, file_listing_json))
         runsheet_df["is_array_data_file_compressed"] = runsheet_df["array_data_file"].str.endswith(".gz")
 
+        runsheet_df["sample_name"] = runsheet_df["Sample Name"]
+        runsheet_df = runsheet_df.set_index("sample_name")
+
+
         tmp_proto = f"{accession}_{assay_file.with_suffix('').name}_proto_run_sheet.csv"
-        runsheet_df.to_csv(tmp_proto, index=False)
+        runsheet_df.to_csv(tmp_proto, index=True)
         yield tmp_proto
 
 def write_proto_runsheet(accession: str, samples: dict, project: dict):
