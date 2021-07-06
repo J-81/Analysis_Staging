@@ -314,7 +314,7 @@ def get_factor_names(study):
 
 def extract_has_ercc(study):
     protocols = study.protocols
-    spike_in_protocols = [protocol for protocol in protocols if protocol["Study Protocol Type"] in ["spike-in quality control role", "spike-in protocol"]]
+    spike_in_protocols = [protocol for protocol in protocols if protocol["Study Protocol Type"] in ["spike-in quality control role", "spike-in protocol", "spike-in control"]]
     if len(spike_in_protocols) == 1:
         return True
     elif len(spike_in_protocols) == 0:
