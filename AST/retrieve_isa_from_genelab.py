@@ -36,7 +36,7 @@ def _parse_args():
   """
   parser = argparse.ArgumentParser()
   parser.add_argument('--accession', metavar='GLDS-001', required=True,
-                      help='GLDS accesion number')
+                      help='GLDS accession number')
   parser.add_argument('--local-isa-zip', metavar='file_ISA.zip', required=False, default=None,
                       help='A local path to an ISA zip file')
   parser.add_argument('--alternate-url', action="store_true", default=False,
@@ -164,13 +164,11 @@ def download_isa(accession: str, alternate_url: bool = False):
     :param accession: GLDS accession number, e.g. GLDS-194
     :param alternate_url: if true, uses alternative url, both alternate and default url should fetch the same file
     """
-    print(f"Accessing GeneLab API for ISA file. Accesion: {accession}")
+    print(f"Accessing GeneLab API for ISA file. Accession: {accession}")
     filename ,_, url, alt_url  = get_isa(accession)
     if not Path(filename).is_file():
         print(f"Successfully retrieved ISA file location from API.")
         use_url = url if not alternate_url else alt_url
-        if not alternate_url:
-            print("WARNING: The default URL did not work in tests.  If it still fails use the alternate url!")
         print(f"Downloading from {use_url}.")
         r = requests.get(use_url)
         # If the response was successful, no Exception will be raised
@@ -316,7 +314,7 @@ def get_factor_names(study):
 
 def extract_has_ercc(study):
     protocols = study.protocols
-    spike_in_protocols = [protocol for protocol in protocols if protocol["Study Protocol Type"] == "spike-in quality control role"]
+    spike_in_protocols = [protocol for protocol in protocols if protocol["Study Protocol Type"] in ["spike-in quality control role", "spike-in protocol", "spike-in control"]]
     if len(spike_in_protocols) == 1:
         return True
     elif len(spike_in_protocols) == 0:
@@ -397,34 +395,6 @@ def get_organism_col_name(merged_df: DataFrame) -> str:
     organism_col = [col for col in merged_df.columns if valid_organism_col(col)]
     assert len(organism_col) == 1, f"Should be one and only one organism column, but found {len(organism_col)}: {organism_col}"
     return organism_col[0]
-
-def clean_up_quotes(i_file: Path) -> Path:
-    """ Converts double quotes within double quoted fields to single quotes.
-    Also removes trailing tabs before newlines.
-    """
-    fixed_lines = list()
-    cleaned_file_name = Path("cleaned_" + str(i_file.name))
-    with open(cleaned_file_name, "w") as corrected_i_file:
-        with open(i_file, "r") as f:
-            for i, line in enumerate(f.readlines()):
-                fixed_tokens = list()
-                tokens = line.split('\t')
-                for token in tokens:
-                    if token == '\n':
-                        # occurs when an additional trailing tab is included
-                        continue
-                    # assume double quoted field
-                    if token[0] == '"':
-                        token = '"' + token[1:-1].replace('"',"'") + '"'
-                        fixed_lines.append(i+1)
-                    fixed_tokens.append(token)
-                corrected_line = '\t'.join(fixed_tokens)
-                if corrected_line[-1] != '\n':
-                    corrected_line = corrected_line + '\n'
-                corrected_i_file.write(corrected_line)
-    if fixed_lines:
-        print("Fixed double quotes for lines: {}")
-    return Path(cleaned_file_name)
 
 def isa_to_RNASeq_runsheet(isazip, accession):
     isa = parse_isa_dir_from_zip(isazip)
@@ -518,7 +488,8 @@ def isa_to_RNASeq_runsheet(isazip, accession):
             samples[sample_name]["file_names"] = file_names
 
             # extract read length: tuple(R1, R2) or if single tuple(R1, R1)
-            samples[sample_name]["read_length"] = extract_read_length(node_data)
+            # samples[sample_name]["read_length"] = extract_read_length(node_data)
+            # Replaced in workflow by read length from fastqc
 
             file_urls = list()
             for file_name in file_names:
@@ -630,6 +601,11 @@ def isa_to_Microarray_runsheet(isazip, accession, missing_col_allowed=False):
         # rename array data column
         runsheet_df = runsheet_df.rename(mapper={variant:"array_data_file" for variant in KNOWN_DATA_FILE_COLUMN_VARIANTS}, axis='columns')
 
+        # rename sample to peppy compliant name
+        runsheet_df = runsheet_df.rename(mapper={"Sample Name":"sample_name"}, axis="columns")
+        print(runsheet_df.head())
+        print(runsheet_df.columns)
+
         # populate with additional dataset-wide
         runsheet_df["GLDS"] = accession
         runsheet_df["Study Assay Measurement Type"] = i_assay_dict["Study Assay Measurement Type"]
@@ -642,14 +618,18 @@ def isa_to_Microarray_runsheet(isazip, accession, missing_col_allowed=False):
 
         def _get_file_url(file_name, file_listing_json):
             file_url = [f"{GENELAB_ROOT}/genelab/static/media/dataset/{quote(entry['file_name'])}?version={entry['version']}" for entry in file_listing_json if entry["file_name"] == file_name]
-            assert len(file_url) == 1, f"One and only one file url should exist for each file. {file_name}"
+            #assert len(file_url) == 1, f"One and only one file url should exist for each file. {file_name}"
             return file_url[0]
         # populate file urls
         runsheet_df["array_data_file_path"] = runsheet_df["array_data_file"].apply(lambda file_name: _get_file_url(file_name, file_listing_json))
         runsheet_df["is_array_data_file_compressed"] = runsheet_df["array_data_file"].str.endswith(".gz")
 
+        runsheet_df["sample_name"] = runsheet_df["Sample Name"]
+        runsheet_df = runsheet_df.set_index("sample_name")
+
+
         tmp_proto = f"{accession}_{assay_file.with_suffix('').name}_proto_run_sheet.csv"
-        runsheet_df.to_csv(tmp_proto, index=False)
+        runsheet_df.to_csv(tmp_proto, index=True)
         yield tmp_proto
 
 def write_proto_runsheet(accession: str, samples: dict, project: dict):
@@ -660,11 +640,11 @@ def write_proto_runsheet(accession: str, samples: dict, project: dict):
         ###########################################################
         factor_string = ','.join(samples[list(samples)[0]]['factors'].keys())
         f.write(f"sample_name,read1_url,"\
-                f"paired_end,has_ERCC,version,organism,read_length_R1,isa_key,"\
+                f"paired_end,has_ERCC,version,organism,isa_key,"\
                 f"protocol,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,"\
                 f"raw_read_fastQC,trimmed_read_fastQC,{factor_string}")
         if project["paired_end"]:
-            f.write(",read2_url,raw_read2,trimmed_read2,read_length_R2")
+            f.write(",read2_url,raw_read2,trimmed_read2,")
         f.write("\n")
 
         ###########################################################
@@ -677,27 +657,26 @@ def write_proto_runsheet(accession: str, samples: dict, project: dict):
                 read2 = sample["file_names"][1]
                 read1_url = sample["file_urls"][0]
                 read2_url = sample["file_urls"][1]
-                read1_read_length = sample["read_length"][0]
-                read2_read_length = sample["read_length"][1]
+                # read1_read_length = sample["read_length"][0]
+                # read2_read_length = sample["read_length"][1]
             else:
                 read1 = sample["file_names"][0]
                 read2 = None
                 read1_url = sample["file_urls"][0]
                 read2_url = None
-                read1_read_length = sample["read_length"][0]
-                read2_read_length = None
+                # read1_read_length = sample["read_length"][0]
+                # read2_read_length = None
 
             f.write(f"{sample_name.replace(' ','_')},{read1_url},"\
                     f"{project['paired_end']},{project['has_ercc']},"\
                     f"{project['version']},{project['organism']},"\
-                    f"{read1_read_length}"\
-                    f",{project['isa_key']},anySampleType,raw_read1,"\
+                    f"{project['isa_key']},anySampleType,raw_read1,"\
                     f"trimmed_read1,STAR_Alignment,RSEM_Counts,"\
                     f"raw_read_fastQC,trimmed_read_fastQC,"\
                     f"{sample_factor_values_string}")
             if project["paired_end"]:
                 f.write(f",{read2_url},raw_read2,"\
-                        f"trimmed_read2,{read2_read_length}")
+                        f"trimmed_read2")
             f.write("\n")
 
     return output_file
@@ -736,30 +715,34 @@ def main():
         shutil.copy(template_path, ".")
         p = peppy.Project(template_path.name)
         filled_run_sheet_name = f"AST_autogen_template_{template_path.with_suffix('').name}_{proto_run_sheet}"
-        p.sample_table.to_csv(filled_run_sheet_name)
+        p.sample_table.drop(columns="sample_name").to_csv(filled_run_sheet_name) # "sample_name" column is dropped as the index is also sample_name and written to file
         print(f"Autogenerating Paths for RNASeq run sheet")
         print(f"Template (in AST package): {template_path.name}")
         print(f"Filled Run Sheet: {filled_run_sheet_name}")
-        os.remove(proto_run_sheet)
+        #os.remove(proto_run_sheet)
         os.remove("tmp_proto_run_sheet.csv")
 
     elif args.to_Microarray_runsheet:
         # generate proto run sheet from ISA
         for proto_run_sheet in isa_to_Microarray_runsheet(isazip, args.accession, args.allow_missing_columns):
             print(f"Generated: {proto_run_sheet}")
-        '''shutil.copy(proto_run_sheet, "tmp_proto_run_sheet.csv")
+        shutil.copy(proto_run_sheet, "tmp_proto_run_sheet.csv")
         # load peppy project config
-        with importlib.resources.path("AST", "Microarray.yaml") as template:
-            template_path = template
+        if args.alt_peppy_template:
+            with importlib.resources.path("AST", f"RNASeq_RCP_alt{args.alt_peppy_template}.yaml") as template:
+                template_path = template
+        else:
+            with importlib.resources.path("AST", "Microarray.yaml") as template:
+                template_path = template
         shutil.copy(template_path, ".")
         p = peppy.Project(template_path.name)
-        filled_run_sheet_name = f"AST_MICROARRAY_v1_{proto_run_sheet}"
-        p.sample_table.to_csv(filled_run_sheet_name)
+        filled_run_sheet_name = f"AST_autogen_template_{template_path.with_suffix('').name}_{proto_run_sheet}"
+        p.sample_table.to_csv(filled_run_sheet_name, index=False)
         print(f"Autogenerating Paths for Microarray run sheet")
         print(f"Template (in AST package): {template_path.name}")
         print(f"Filled Run Sheet: {filled_run_sheet_name}")
         os.remove(proto_run_sheet)
-        os.remove("tmp_proto_run_sheet.csv")'''
+        os.remove("tmp_proto_run_sheet.csv")
 
     else:
         print(f"No Runsheet generation requested")

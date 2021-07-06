@@ -2,6 +2,10 @@ pep_version: "2.0.0"
 sample_table: "tmp_proto_run_sheet.csv"
 
 sample_modifiers:
+  remove:
+    - version
+    - isa_key
+
   append:
     raw_read_multiqc: 00-RawData/FastQC_Reports/raw_multiqc_report/raw_multiqc_data/multiqc_data.json
     trimmed_read_multiqc: 01-TG_Preproc/FastQC_Reports/trimmed_multiqc_report/trimmed_multiqc_data/multiqc_data.json

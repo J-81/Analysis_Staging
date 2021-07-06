@@ -5,6 +5,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+  - Missing the ERCC spike-in for GLDS-273
+
+## [0.3.0] - 2021-06-16
+### Changed
+  - Proto run sheet is no longer deleted by default.
+  - Final run sheet now uses the 'remove' directive to drop unneeded columns.
+
+### Removed
+  - Read length extraction, prior knowledge of raw read length is no longer required for processing.
+
+### Fixed
+  - Duplicate sample_name in final run sheet removed.
 
 ## [0.2.1] - 2021-04-07
 ### Added
