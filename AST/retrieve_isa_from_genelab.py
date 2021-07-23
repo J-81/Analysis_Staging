@@ -19,6 +19,8 @@ import shutil
 import importlib.resources
 import traceback
 
+from AST import __version__
+
 import pandas as pd
 from pandas import DataFrame
 from isatools import isatab
@@ -34,7 +36,7 @@ import peppy
 def _parse_args():
   """ Parse command line args.
   """
-  parser = argparse.ArgumentParser()
+  parser = argparse.ArgumentParser(description=f"Analysis Staging Tool Version: {__version__}")
   parser.add_argument('--accession', metavar='GLDS-001', required=True,
                       help='GLDS accession number')
   parser.add_argument('--local-isa-zip', metavar='file_ISA.zip', required=False, default=None,
@@ -624,7 +626,6 @@ def isa_to_Microarray_runsheet(isazip, accession, missing_col_allowed=False):
         runsheet_df["array_data_file_path"] = runsheet_df["array_data_file"].apply(lambda file_name: _get_file_url(file_name, file_listing_json))
         runsheet_df["is_array_data_file_compressed"] = runsheet_df["array_data_file"].str.endswith(".gz")
 
-        runsheet_df["sample_name"] = runsheet_df["Sample Name"]
         runsheet_df = runsheet_df.set_index("sample_name")
 
 
