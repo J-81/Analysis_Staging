@@ -18,6 +18,7 @@ setup(
    package_data={
         "": ['RNASeq_RCP.yaml', 'RNASeq_RCP_alt1.yaml', 'Microarray.yaml'],
                 },
+   install_requires=['pandas','isatools','peppy'],
    setup_requires=['pytest-runner'],
    tests_require=['pytest']
 )
