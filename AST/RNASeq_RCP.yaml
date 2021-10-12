@@ -17,6 +17,7 @@ sample_modifiers:
                  "raw_read_fastQC",
                  "trimmed_read1","trimmed_read2",
                  "trimmed_read_fastQC",
+                 "rseqc_output__infer_experiment",
                  "STAR_Alignment","RSEM_Counts"]
     sources:
       raw_read1: 00-RawData/Fastq/{sample_name}_R1_raw.fastq.gz
@@ -25,5 +26,6 @@ sample_modifiers:
       trimmed_read1: 01-TG_Preproc/Fastq/{sample_name}_R1_trimmed.fastq.gz
       trimmed_read2: 01-TG_Preproc/Fastq/{sample_name}_R2_trimmed.fastq.gz
       trimmed_read_fastQC: 01-TG_Preproc/FastQC_Reports
+      rseqc_output__infer_experiment: 01-TG_Preproc/RSeQC_Reports/{sample_name}_infer_experiment.out
       STAR_Alignment: 02-STAR_Alignment/{sample_name}
       RSEM_Counts: 03-RSEM_Counts/{sample_name}
