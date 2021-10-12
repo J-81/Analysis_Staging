@@ -643,7 +643,7 @@ def write_proto_runsheet(accession: str, samples: dict, project: dict):
         f.write(f"sample_name,read1_url,"\
                 f"paired_end,has_ERCC,version,organism,isa_key,"\
                 f"protocol,raw_read1,trimmed_read1,STAR_Alignment,RSEM_Counts,"\
-                f"raw_read_fastQC,trimmed_read_fastQC,rseqc_output__infer_experiment,{factor_string}")
+                f"raw_read_fastQC,trimmed_read_fastQC,{factor_string}")
         if project["paired_end"]:
             f.write(",read2_url,raw_read2,trimmed_read2,")
         f.write("\n")
@@ -674,7 +674,6 @@ def write_proto_runsheet(accession: str, samples: dict, project: dict):
                     f"{project['isa_key']},anySampleType,raw_read1,"\
                     f"trimmed_read1,STAR_Alignment,RSEM_Counts,"\
                     f"raw_read_fastQC,trimmed_read_fastQC,"\
-                    f"rseqc_output__infer_experiment,"\
                     f"{sample_factor_values_string}")
             if project["paired_end"]:
                 f.write(f",{read2_url},raw_read2,"\
