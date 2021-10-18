@@ -608,6 +608,7 @@ def isa_to_Microarray_runsheet(isazip, accession, missing_col_allowed=False):
             else:
                 raise KeyError(f"Missing columns Error: '{missing_columns}'.  Columns found: {list(runsheet_df.columns)}")
 
+
         # rename array data column
         runsheet_df = runsheet_df.rename(mapper={"Array Data File":"array_data_file"}, axis='columns')
 
@@ -624,6 +625,7 @@ def isa_to_Microarray_runsheet(isazip, accession, missing_col_allowed=False):
         runsheet_df["Study Assay Measurement Type"] = i_assay_dict["Study Assay Measurement Type"]
         runsheet_df["Study Assay Technolgy Type"] = i_assay_dict["Study Assay Technology Type"]
         runsheet_df["Study Assay Technology Platform"] = i_assay_dict["Study Assay Technology Platform"]
+        runsheet_df["Channels"] = len(runsheet_df["Label"].unique())
 
         # get file urls
         file_listing_json, runsheet_df["version"] = get_glds_filelisting_json(accession)
