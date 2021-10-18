@@ -600,8 +600,12 @@ def isa_to_Microarray_runsheet(isazip, accession, missing_col_allowed=False):
                 runsheet_df = runsheet_df[columns_to_keep]
             else:
                 raise KeyError(f"Missing columns Error: '{missing_columns}'.  Columns found: {list(runsheet_df.columns)}")
+
         # rename array data column
         runsheet_df = runsheet_df.rename(mapper={variant:"array_data_file" for variant in KNOWN_DATA_FILE_COLUMN_VARIANTS}, axis='columns')
+
+        # collapse-rename: ISA-org column -> 'organism'
+        runsheet_df = runsheet_df.rename(mapper={organism_column:"organism"}  , axis='columns')
 
         # rename sample to peppy compliant name
         runsheet_df = runsheet_df.rename(mapper={"Sample Name":"sample_name"}, axis="columns")
