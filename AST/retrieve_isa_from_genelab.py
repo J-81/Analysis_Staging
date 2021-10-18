@@ -559,10 +559,6 @@ def isa_to_Microarray_runsheet(isazip, accession, missing_col_allowed=False):
 
         # filter columns
         # i.e. drop columns that do not affect processing parameters
-        KNOWN_DATA_FILE_COLUMN_VARIANTS = ["Array Data File","Parameter Value[array data file]"]
-        array_data_column = [col for col in runsheet_df.columns if col in KNOWN_DATA_FILE_COLUMN_VARIANTS]
-        assert len(array_data_column) == 1, f"One and only one column that indicates the array data file should exist"
-
         factor_columns = [col for col in runsheet_df.columns if col.startswith("Factor Value[")]
 
         # check for factor value unit columns
@@ -580,15 +576,26 @@ def isa_to_Microarray_runsheet(isazip, accession, missing_col_allowed=False):
         # organism column name
         organism_column = get_organism_col_name(runsheet_df)
 
+        COMMENT_ARRAY_DATA_FILE_NAME = "Comment[Array Data File Name]"
+
         columns_to_keep = ["Sample Name",
                            "Source Name",
                            "Label",
                            "Hybridization Assay Name",
-                           organism_column] + factor_columns + array_data_column
+                           "Array Data File",
+                           COMMENT_ARRAY_DATA_FILE_NAME,
+                           organism_column] + factor_columns
 
         try:
             missing_columns = set(columns_to_keep).difference(set(runsheet_df.columns))
-            assert len(missing_columns) == 0, "Missing Required Metadata Columns Detected"
+
+            # check if missing columns are optional
+            for missing in missing_columns:
+                if missing == COMMENT_ARRAY_DATA_FILE_NAME:
+                    # this will only exist in legacy datasets with dataset wide zipped raw files
+                    runsheet_df[missing] = "N/A"
+                else:
+                    raise ValueError(f"Missing Required Metadata Columns Detected: {missing} in missing list {missing_columns}")
             runsheet_df = runsheet_df[columns_to_keep]
         except AssertionError: # this indicates a required column was not found
             if missing_col_allowed:
@@ -602,7 +609,7 @@ def isa_to_Microarray_runsheet(isazip, accession, missing_col_allowed=False):
                 raise KeyError(f"Missing columns Error: '{missing_columns}'.  Columns found: {list(runsheet_df.columns)}")
 
         # rename array data column
-        runsheet_df = runsheet_df.rename(mapper={variant:"array_data_file" for variant in KNOWN_DATA_FILE_COLUMN_VARIANTS}, axis='columns')
+        runsheet_df = runsheet_df.rename(mapper={"Array Data File":"array_data_file"}, axis='columns')
 
         # collapse-rename: ISA-org column -> 'organism'
         runsheet_df = runsheet_df.rename(mapper={organism_column:"organism"}  , axis='columns')
