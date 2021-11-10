@@ -495,12 +495,12 @@ def isa_to_RNASeq_runsheet(isazip, accession):
 
             file_urls = list()
             for file_name in file_names:
-                #print(file_name)
+                print(f"Searching listing for filename: '{file_name}'")
                 # uses alternative url
                 valid_urls = [f"{GENELAB_ROOT}/genelab/static/media/dataset/{quote(entry['file_name'])}?version={entry['version']}" for entry in file_listing_json if entry["file_name"] == file_name]
 
                 # only one valid url should be associated
-                assert len(valid_urls) == 1, f"Bad Number Of Listings For File: {file_name}. There are {len(valid_urls)} listings for this file. There should be one and only one entry. File listing URL: {file_list_url}"
+                assert len(valid_urls) == 1, f"Bad Number Of Listings For File: {file_name}. There are {len(valid_urls)} listings for this file. There should be one and only one entry."
                 file_urls.append(valid_urls[0])
             samples[sample_name]["file_urls"] = file_urls
 
