@@ -52,7 +52,9 @@ def _parse_args():
   parser.add_argument('--alt-peppy-template', default=False,
                       help='Use alternative template')
   parser.add_argument('--to-Microarray-runsheet', action="store_true", default=False,
-                      help='Creates Microarray Runsheet based on ISA file and GeneLab API')
+                      help='creates microarray runsheet based on isa file and genelab api')
+  parser.add_argument('--ignore-filelisting', action="store_true", default=False,
+                      help='Will not retrieve GeneLab urls for raw data files.  This can be used if the files are to be stored locally')
 
   args = parser.parse_args()
   return args
@@ -510,7 +512,7 @@ def isa_to_RNASeq_runsheet(isazip, accession):
 
     return write_proto_runsheet(accession, samples, project)
 
-def isa_to_Microarray_runsheet(isazip, accession, missing_col_allowed=False):
+def isa_to_Microarray_runsheet(isazip, accession, missing_col_allowed=False, ignore_filelisting=False):
     isa_temp_dir = _unzip_ISA(isazip)
     # find files using glob
     i_file_glob = list(Path(isa_temp_dir).glob("i_*"))
@@ -636,7 +638,10 @@ def isa_to_Microarray_runsheet(isazip, accession, missing_col_allowed=False):
             assert len(file_url) == 1, f"One and only one file url should exist for each file. {file_name}"
             return file_url[0]
         # populate file urls
-        runsheet_df["array_data_file_path"] = runsheet_df["array_data_file"].apply(lambda file_name: _get_file_url(file_name, file_listing_json))
+        if not ignore_filelisting:
+            runsheet_df["array_data_file_path"] = runsheet_df["array_data_file"].apply(lambda file_name: _get_file_url(file_name, file_listing_json))
+        else:
+            runsheet_df["array_data_file_path"] = runsheet_df["array_data_file"]
         runsheet_df["is_array_data_file_compressed"] = runsheet_df["array_data_file"].str.endswith(".gz")
 
         runsheet_df = runsheet_df.set_index("sample_name")
@@ -738,7 +743,7 @@ def main():
 
     elif args.to_Microarray_runsheet:
         # generate proto run sheet from ISA
-        for proto_run_sheet in isa_to_Microarray_runsheet(isazip, args.accession, args.allow_missing_columns):
+        for proto_run_sheet in isa_to_Microarray_runsheet(isazip, args.accession, args.allow_missing_columns, args.ignore_filelisting):
             print(f"Generated: {proto_run_sheet}")
         shutil.copy(proto_run_sheet, "tmp_proto_run_sheet.csv")
         # load peppy project config

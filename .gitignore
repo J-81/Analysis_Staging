@@ -4,3 +4,4 @@ build
 AST.egg-info
 .pytest_cache
 *.swp
+ptw.sh
