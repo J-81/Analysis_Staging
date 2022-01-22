@@ -315,8 +315,13 @@ def get_factor_names(study):
             for study_factor in study.factors]
 
 def extract_has_ercc(study):
+    """ Searches through study protocols to see if any protocol type indicates usage of the ERCC spike in.
+
+    The search uses a regex pattern against the protocol types AFTER they are converted to all lower case and stripped for lead/trailing whitespace
+    """
+    SPIKE_IN_REGEX = r'spike-in.*'
     protocols = study.protocols
-    spike_in_protocols = [protocol for protocol in protocols if protocol["Study Protocol Type"] in ["spike-in quality control role", "spike-in protocol", "spike-in control"]]
+    spike_in_protocols = [protocol for protocol in protocols if protocol["Study Protocol Type"].strip().lower() in ["spike-in quality control role", "spike-in protocol", "spike-in control"]]
     if len(spike_in_protocols) == 1:
         return True
     elif len(spike_in_protocols) == 0:
